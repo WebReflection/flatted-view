@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="module">
+    import { encode } from './encode.js';
+    import { decode } from './decode.js';
+
+    const data = {
+      d: [1, 2, 3],
+    };
+
+    data.data = data;
+  
+    debugger;
+    console.time('encode');
+    const encoded = encode(data);
+    console.timeEnd('encode');
+    console.log(encoded.length);
+
+    console.time('decode');
+    const decoded = decode(encoded);
+    console.timeEnd('decode');
+    console.log(decoded);
+
+    // for (let i = 0; i < AMOUNT; i++) {
+    //   chain = chain[0];
+    // }
+
+    // console.log(chain);
+
+  </script>
+</head>
+</html>
