@@ -7,28 +7,25 @@
     import { encode } from './encode.js';
     import { decode } from './decode.js';
 
-    const data = {
-      a: [1, 1.23],
-      b: '0123456789'
-    };
+    const AMOUNT = 5000;
 
-    data.r = data;
-  
+    let chain = ['leaf'];
+
+    for (let i = 0; i < AMOUNT; i++)
+      chain = [chain];
+
     console.time('encode');
-    const encoded = encode(data);
+    chain = encode(chain);
     console.timeEnd('encode');
-    console.log(encoded.length);
 
     console.time('decode');
-    const decoded = decode(encoded);
+    chain = decode(chain);
     console.timeEnd('decode');
-    console.log(decoded);
 
-    // for (let i = 0; i < AMOUNT; i++) {
-    //   chain = chain[0];
-    // }
+    for (let i = 0; i < AMOUNT; i++)
+      chain = chain[0];
 
-    // console.log(chain);
+    console.log(chain);
 
   </script>
 </head>
