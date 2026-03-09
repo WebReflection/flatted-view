@@ -8,12 +8,12 @@
     import { decode } from './decode.js';
 
     const data = {
-      d: [1, 2, 3],
+      a: [1, 1.23],
+      b: '0123456789'
     };
 
-    data.data = data;
+    data.r = data;
   
-    debugger;
     console.time('encode');
     const encoded = encode(data);
     console.timeEnd('encode');
