@@ -1,3 +1,5 @@
-export function decode(view: any, { custom }?: {
-    custom: (value: any) => any;
-}): any;
+export function decode(view: number[] | Uint8Array, { custom }?: Options): unknown;
+export default decode;
+export type Options = {
+    custom?: (value: unknown) => unknown;
+};

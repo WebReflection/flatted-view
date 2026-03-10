@@ -1,3 +1,5 @@
+// @ts-check
+
 // 8 bits combinatory logic to rule them all
 
 // bytes per number (1, 4, 8)

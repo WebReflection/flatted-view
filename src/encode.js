@@ -1,3 +1,5 @@
+// @ts-check
+
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
 import { I8, I16, I32, I64, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 
@@ -62,7 +64,7 @@ const floating = (output, value) => {
 const number = (output, value) => {
   if (isInteger(value)) {
     if (value < MAX_I8 && -MAX_I8 <= value) {
-      dv.setInt8(0, value, true);
+      dv.setInt8(0, value);
       output.push(NUMBER | I8, v8[0]);
     }
     else if (value < MAX_I16 && -MAX_I16 <= value) {
@@ -114,10 +116,9 @@ const uint = (type, length) => {
 };
 
 /**
- * @template T
  * @callback custom
- * @param {T} value
- * @returns {T | number[] | Uint8Array}
+ * @param {unknown} value
+ * @returns {unknown | View}
  */
 
 /**
@@ -126,7 +127,7 @@ const uint = (type, length) => {
 
 /**
  * Encodes data as uint8 values
- * @param {any} data
+ * @param {unknown} data
  * @param {Options} options
  * @returns
  */
@@ -213,6 +214,10 @@ function compatible(key) {
   }
 }
 
+/**
+ * @param {number[] | Uint8Array} value
+ * @returns
+ */
 export const view = value => new View(value);
 
 export default encode;

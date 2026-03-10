@@ -1,3 +1,5 @@
+// @ts-check
+
 const { isArray } = Array;
 
 const b8 = new ArrayBuffer(8);

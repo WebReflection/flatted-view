@@ -1,3 +1,5 @@
+// @ts-check
+
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
 import { I8, I16, I32, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 
@@ -30,8 +32,8 @@ const number = (input, type, index) => {
   type &= NUMBER_IGNORE;
   v8[0] = input[index.i++];
 
-  if (type === U8) return dv.getUint8(0, true);
-  if (type === I8) return dv.getInt8(0, true);
+  if (type === U8) return dv.getUint8(0);
+  if (type === I8) return dv.getInt8(0);
 
   v8[1] = input[index.i++];
   if (type === U16) return dv.getUint16(0, true);
@@ -61,6 +63,15 @@ const string = (input, cache, type, index) => {
   return str;
 };
 
+/**
+ * @typedef {{ custom?: (value: unknown) => unknown }} Options
+ */
+
+/**
+ * @param {number[] | Uint8Array} view
+ * @param {Options} [options] 
+ * @returns {unknown}
+ */
 export const decode = (view, { custom = options.custom } = options) => {
   const input = isArray(view) ? new Uint8Array(view) : view;
   const cache = new Map;
