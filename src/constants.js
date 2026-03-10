@@ -1,13 +1,23 @@
 // 8 bits combinatory logic to rule them all
 
 // bytes per number (1, 4, 8)
-export const L8        = 1 << 0;                   // 00000001
-export const L16       = 1 << 1;                   // 00000010
-export const L32       = 1 << 2;                   // 00000100
-export const L64       = 1 << 3;                   // 00001000
+export const I8        = 1 << 0;                   // 00000001
+export const I16       = 1 << 1;                   // 00000010
+export const I32       = 1 << 2;                   // 00000100
+export const I64       = 1 << 3;                   // 00001000
+
+// bytes per uint (1, 4, 8)
+export const U8        = I16 | I8;                 // 00000011
+export const U16       = I32 | I16;                // 00000110
+export const U32       = I32 | I16 | I8;           // 00000111
+
+// bytes per Big(U)Int
+export const BI        = I64 | I32 | I8;           // 00001101
+export const BUI       = I64 | I32 | I16;          // 00001110
+
 
 // switch (type & ~LEN) case RECURSION: ...
-export const LEN = L8 | L16 | L32 | L64;           // 00001111
+export const LEN = I8 | I16 | I32 | I64;           // 00001111
 
 // primitive values
 export const FALSE     = 0;                        // 00000000

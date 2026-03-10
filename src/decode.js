@@ -1,7 +1,9 @@
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
-import { L8, L16, L32, LEN } from './constants.js';
+import { I8, I16, I32, U8, U16, U32, LEN } from './constants.js';
 
 import { isArray, item, options, dv, v8 } from './utils.js';
+
+const NUMBER_IGNORE = ~(RECURSION | NUMBER);
 
 const decoder = new TextDecoder;
 const ignore = item(NULL, null);
@@ -14,20 +16,25 @@ const floating = (input, index) => {
 const key = (input, cache, index) => {
   const type = input[index.i++];
   return (type & ~LEN) === RECURSION ?
-    cache.get(uint(input, type, index)) :
+    cache.get(number(input, type, index)) :
     string(input, cache, type, index);
 };
 
 const number = (input, type, index) => {
+  type &= NUMBER_IGNORE;
   v8[0] = input[index.i++];
-  if (type & L8) return dv.getInt8(0, true);
+
+  if (type === U8) return dv.getUint8(0, true);
+  if (type === I8) return dv.getInt8(0, true);
 
   v8[1] = input[index.i++];
-  if (type & L16) return dv.getInt16(0, true);
+  if (type === U16) return dv.getUint16(0, true);
+  if (type === I16) return dv.getInt16(0, true);
 
   v8[2] = input[index.i++];
   v8[3] = input[index.i++];
-  if (type & L32) return dv.getInt32(0, true);
+  if (type === U32) return dv.getUint32(0, true);
+  if (type === I32) return dv.getInt32(0, true);
 
   return floating(input, index);
 };
@@ -40,27 +47,12 @@ const slice = (input, length, index) => {
 
 const string = (input, cache, type, index) => {
   const known = index.i - 1;
-  const length = uint(input, type, index);
+  const length = number(input, type, index);
   const i = index.i;
   index.i += length;
   const str = decoder.decode(input.subarray(i, i + length));
   cache.set(known, str);
   return str;
-};
-
-const uint = (input, type, index) => {
-  v8[0] = input[index.i++];
-  if (type & L8) return dv.getUint8(0, true);
-
-  v8[1] = input[index.i++];
-  if (type & L16) return dv.getUint16(0, true);
-
-  v8[2] = input[index.i++];
-  v8[3] = input[index.i++];
-
-  if (type & L32) return dv.getUint32(0, true);
-  /* c8 ignore next */
-  return floating(input, index);
 };
 
 export const decode = (view, { custom = options.custom } = options) => {
@@ -83,13 +75,13 @@ export const decode = (view, { custom = options.custom } = options) => {
     else if (type === NULL) entry = null;
 
     else if (type === CUSTOM) {
-      const length = uint(input, input[index.i++], index);
+      const length = number(input, input[index.i++], index);
       entry = custom(slice(input, length, index));
     }
 
     else if (type & NUMBER) {
       if (type & ARRAY) {
-        const length = uint(input, type, index);
+        const length = number(input, type & ~ARRAY, index);
         entry = slice(input, length, index);
       }
       else entry = number(input, type, index);
@@ -97,13 +89,13 @@ export const decode = (view, { custom = options.custom } = options) => {
 
     else {
       const kind = type & ~LEN;
-      if (kind === RECURSION) entry = cache.get(uint(input, type, index));
+      if (kind === RECURSION) entry = cache.get(number(input, type, index));
 
       else if (kind === STRING) entry = string(input, cache, type, index);
 
       else {
         const known = index.i - 1;
-        const length = uint(input, type, index);
+        const length = number(input, type, index);
 
         if (kind === ARRAY) {
           entry = [];

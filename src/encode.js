@@ -1,15 +1,15 @@
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
-import { L8, L16, L32, L64 } from './constants.js';
+import { I8, I16, I32, I64, U8, U16, U32, LEN } from './constants.js';
 
 import { isArray, item, options, dv, v8 } from './utils.js';
 
-const U8  = 2 ** 8;
-const U16 = 2 ** 16;
-const U32 = 2 ** 32;
+const MAX_U8  = 2 ** 8;
+const MAX_U16 = 2 ** 16;
+const MAX_U32 = 2 ** 32;
 
-const I8  = U8 / 2;
-const I16 = U16 / 2;
-const I32 = U32 / 2;
+const MAX_I8  = MAX_U8 / 2;
+const MAX_I16 = MAX_U16 / 2;
+const MAX_I32 = MAX_U32 / 2;
 
 const { isInteger } = Number;
 const { keys } = Object;
@@ -24,24 +24,25 @@ const augment = (output, value) => {
 
 const floating = (output, value) => {
   dv.setFloat64(0, value, true);
-  output.push(NUMBER | L64, ...v8);
+  output.push(NUMBER | I64, ...v8);
 };
 
 const number = (output, value) => {
   if (isInteger(value)) {
-    if (value < I8 && -I8 <= value) {
+    if (value < MAX_I8 && -MAX_I8 <= value) {
       dv.setInt8(0, value, true);
-      output.push(NUMBER | L8, v8[0]);
+      output.push(NUMBER | I8, v8[0]);
     }
-    else if (value < I16 && -I16 <= value) {
+    else if (value < MAX_I16 && -MAX_I16 <= value) {
       dv.setInt16(0, value, true);
-      output.push(NUMBER | L16, v8[0], v8[1]);
+      output.push(NUMBER | I16, v8[0], v8[1]);
     }
-    else if (value < I32 && -I32 <= value) {
+    else if (value < MAX_I32 && -MAX_I32 <= value) {
       dv.setInt32(0, value, true);
-      output.push(NUMBER | L32, v8[0], v8[1], v8[2], v8[3]);
+      output.push(NUMBER | I32, v8[0], v8[1], v8[2], v8[3]);
     }
-    else floating(output, value);
+    else if (value < 0) floating(output, value);
+    else output.push(...uint(NUMBER, value));
   }
   else floating(output, value);
 };
@@ -64,20 +65,20 @@ const string = (output, cache, data) => {
 };
 
 const uint = (type, length) => {
-  if (length < U8)
-    return [type | L8, length];
-  if (length < U16) {
+  if (length < MAX_U8)
+    return [type | U8, length];
+  if (length < MAX_U16) {
     dv.setUint16(0, length, true);
-    return [type | L16, v8[0], v8[1]];
+    return [type | U16, v8[0], v8[1]];
   }
-  if (length < U32) {
+  if (length < MAX_U32) {
     dv.setUint32(0, length, true);
-    return [type | L32, v8[0], v8[1], v8[2], v8[3]];
+    return [type | U32, v8[0], v8[1], v8[2], v8[3]];
   }
   /* c8 ignore next */
   dv.setFloat64(0, length, true);
   /* c8 ignore next */
-  return [type | L64, ...v8];
+  return [type | LEN, ...v8];
 };
 
 /**
