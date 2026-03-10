@@ -38,19 +38,17 @@
     // data.d.push(data);
     // data.data = data;
 
-    debugger;
     const encoded = encode(data, {
       custom(value) {
         if (typeof value === 'object' && '$bigint' in value && typeof value.$bigint === 'bigint')
-          return encode({ ...value, $bigint: ASCII.encode(value.$bigint.toString()) });
+          return { ...value, $bigint: ASCII.encode(value.$bigint.toString()) };
         return value;
       }
     });
-    
+
     console.log(decode(encoded, {
       custom(value) {
         const decoded = decode(value);
-        console.log('custom decode', decoded);
         if (typeof decoded === 'object' && '$bigint' in decoded)
           decoded.$bigint = BigInt(ASCII.decode(decoded.$bigint));
         return decoded;

@@ -1,5 +1,5 @@
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
-import { I8, I16, I32, U8, U16, U32, LEN } from './constants.js';
+import { I8, I16, I32, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 
 import { isArray, item, options, dv, v8 } from './utils.js';
 
@@ -7,6 +7,11 @@ const NUMBER_IGNORE = ~(RECURSION | NUMBER);
 
 const decoder = new TextDecoder;
 const ignore = item(NULL, null);
+
+const bigint = (input, index, isBigUint) => {
+  for (let i = 0; i < 8; i++) v8[i] = input[index.i++];
+  return isBigUint ? dv.getBigUint64(0, true) : dv.getBigInt64(0, true);
+};
 
 const floating = (input, index) => {
   for (let j = 4; j < 8; j++) v8[j] = input[index.i++];
@@ -84,7 +89,12 @@ export const decode = (view, { custom = options.custom } = options) => {
         const length = number(input, type & ~ARRAY, index);
         entry = slice(input, length, index);
       }
-      else entry = number(input, type, index);
+      else {
+        const t = type & ~NUMBER;
+        const isBigUint = t === BUI;
+        if (isBigUint || t === BI) entry = bigint(input, index, isBigUint);
+        else entry = number(input, type, index);
+      }
     }
 
     else {

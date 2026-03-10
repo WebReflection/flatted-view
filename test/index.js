@@ -63,7 +63,7 @@ encoded = encode({
 
 decoded = decode(encoded);
 
-assert(undefined, decoded.bi);
+assert(123n, decoded.bi);
 assert(123, decoded.i);
 
 data.data = data;

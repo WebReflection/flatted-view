@@ -1,5 +1,5 @@
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
-import { I8, I16, I32, I64, U8, U16, U32, LEN } from './constants.js';
+import { I8, I16, I32, I64, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 
 import { isArray, item, options, dv, v8 } from './utils.js';
 
@@ -17,9 +17,22 @@ const { keys } = Object;
 const encoder = new TextEncoder;
 
 const augment = (output, value) => {
+  if (!(value instanceof Uint8Array))
+    value = new Uint8Array(encode(value));
   const length = value.length;
   output.push(CUSTOM, ...uint(NUMBER, length));
-  push(output, isArray(value) ? new Uint8Array(value) : value, length);
+  push(output, value, length);
+};
+
+const bigint = (output, value) => {
+  if (value < 0n) {
+    dv.setBigInt64(0, value, true);
+    output.push(NUMBER | BI, ...v8);
+  }
+  else {
+    dv.setBigUint64(0, value, true);
+    output.push(NUMBER | BUI, ...v8);
+  }
 };
 
 const floating = (output, value) => {
@@ -105,6 +118,9 @@ export const encode = (data, { output = [], custom = options.custom } = options)
     const { k, v } = stack.pop();
     if (k !== null) string(output, cache, k);
     switch (typeof v) {
+      case 'bigint':
+        bigint(output, v);
+        break;
       case 'boolean':
         output.push(v ? TRUE : FALSE);
         break;
@@ -167,9 +183,10 @@ export const encode = (data, { output = [], custom = options.custom } = options)
 
 function compatible(key) {
   switch (typeof this[key]) {
+    case 'bigint':
     case 'boolean':
-    case 'string':
     case 'number':
+    case 'string':
     case 'object':
       return true;
     default:
