@@ -4,3 +4,5 @@ export const v8 = new Uint8Array(b8);
 
 const { isArray } = Array;
 export { isArray };
+
+export const item = (k, v) => ({ k, v });

@@ -1,7 +1,7 @@
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
 import { L8, L16, L32, L64 } from './constants.js';
 
-import { isArray, dv, v8 } from './utils.js';
+import { isArray, item, dv, v8 } from './utils.js';
 
 const U8  = 2 ** 8;
 const U16 = 2 ** 16;
@@ -27,8 +27,6 @@ const floating = (output, value) => {
   dv.setFloat64(0, value, true);
   output.push(NUMBER | L64, ...v8);
 };
-
-const item = (k, v) => ({ k, v });
 
 const number = (output, value) => {
   if (isInteger(value)) {

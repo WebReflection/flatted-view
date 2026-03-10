@@ -1,99 +1,120 @@
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
 import { L8, L16, L32, LEN } from './constants.js';
 
-import { isArray, dv, v8 } from './utils.js';
+import { isArray, item, dv, v8 } from './utils.js';
 
 const decoder = new TextDecoder;
+const ignore = item(NULL, null);
 
-export const decode = view => loop(isArray(view) ? new Uint8Array(view) : view, new Map, { i: 0 });
-
-const floating = (o, index) => {
-  for (let j = 4; j < 8; j++) v8[j] = o[index.i++];
+const floating = (input, index) => {
+  for (let j = 4; j < 8; j++) v8[j] = input[index.i++];
   return dv.getFloat64(0, true);
 };
 
-const key = (o, k, type, index) => {
-  return ((type & ~LEN) === RECURSION) ?
-    k.get(uint(o, type, index)) :
-    string(o, k, type, index);
+const key = (input, cache, index) => {
+  const type = input[index.i++];
+  return (type & ~LEN) === RECURSION ?
+    cache.get(uint(input, type, index)) :
+    string(input, cache, type, index);
 };
 
-const number = (o, type, index) => {
-  v8[0] = o[index.i++];
+const number = (input, type, index) => {
+  v8[0] = input[index.i++];
   if (type & L8) return dv.getInt8(0, true);
 
-  v8[1] = o[index.i++];
+  v8[1] = input[index.i++];
   if (type & L16) return dv.getInt16(0, true);
 
-  v8[2] = o[index.i++];
-  v8[3] = o[index.i++];
+  v8[2] = input[index.i++];
+  v8[3] = input[index.i++];
   if (type & L32) return dv.getInt32(0, true);
 
-  return floating(o, index);
+  return floating(input, index);
 };
 
-const string = (o, k, type, index) => {
+const string = (input, cache, type, index) => {
   const known = index.i - 1;
-  const length = uint(o, type, index);
+  const length = uint(input, type, index);
   const i = index.i;
   index.i += length;
-  const str = decoder.decode(o.subarray(i, i + length));
-  k.set(known, str);
+  const str = decoder.decode(input.subarray(i, i + length));
+  cache.set(known, str);
   return str;
 };
 
-const uint = (o, type, index) => {
-  v8[0] = o[index.i++];
+const uint = (input, type, index) => {
+  v8[0] = input[index.i++];
   if (type & L8) return dv.getUint8(0, true);
 
-  v8[1] = o[index.i++];
+  v8[1] = input[index.i++];
   if (type & L16) return dv.getUint16(0, true);
 
-  v8[2] = o[index.i++];
-  v8[3] = o[index.i++];
+  v8[2] = input[index.i++];
+  v8[3] = input[index.i++];
   if (type & L32) return dv.getUint32(0, true);
 
-  return floating(o, index);
+  return floating(input, index);
 };
 
-const loop = (input, cache, index) => {
-  const type = input[index.i++];
-  if (type === FALSE) return false;
-  if (type === TRUE) return true;
-  if (type === NULL) return null;
-  if (type === CUSTOM) {
-    // TODO: implement custom decoding
-    throw new Error('not implemented');
-  }
+export const decode = view => {
+  const input = isArray(view) ? new Uint8Array(view) : view;
+  const cache = new Map;
+  const index = { i: 0 };
+  const stack = input.length ? [ignore] : [];
 
-  if (type & NUMBER) return number(input, type, index);
+  let first = true, result, entry, prop;
 
-  const kind = type & ~LEN;
-  if (kind === RECURSION) return cache.get(uint(input, type, index));
+  while (stack.length) {
+    const { k, v } = stack.pop();
 
-  if (kind === STRING) return string(input, cache, type, index);
+    if (k === OBJECT) prop = key(input, cache, index);
 
-  const known = index.i - 1;
+    const type = input[index.i++];
 
-  if (kind === ARRAY) {
-    const length = uint(input, type, index);
-    const array = [];
-    cache.set(known, array);
-    for (let i = 0; i < length; i++)
-      array.push(loop(input, cache, index));
-    return array;
-  }
+    if (type === FALSE) entry = false;
+    else if (type === TRUE) entry = true;
+    else if (type === NULL) entry = null;
 
-  if (kind === OBJECT) {
-    const length = uint(input, type, index);
-    const object = {};
-    cache.set(known, object);
-    for (let i = 0; i < length; i++) {
-      const name = key(input, cache, input[index.i++], index);
-      object[name] = loop(input, cache, index);
+    else if (type === CUSTOM) {
+      // TODO: implement custom decoding
+      throw new Error('not implemented');
     }
-    return object;
+
+    else if (type & NUMBER) entry = number(input, type, index);
+
+    else {
+      const kind = type & ~LEN;
+      if (kind === RECURSION) entry = cache.get(uint(input, type, index));
+
+      else if (kind === STRING) entry = string(input, cache, type, index);
+
+      else {
+        const known = index.i - 1;
+        const length = uint(input, type, index);
+
+        if (kind === ARRAY) {
+          entry = [];
+          cache.set(known, entry);
+          for (let next = item(ARRAY, entry), i = 0; i < length; i++)
+            stack.push(next);
+        }
+
+        else if (kind === OBJECT) {
+          entry = {};
+          cache.set(known, entry);
+          for (let next = item(OBJECT, entry), i = 0; i < length; i++)
+            stack.push(next);
+        }
+      }
+    }
+
+    if (k === OBJECT) v[prop] = entry;
+    else if (k === ARRAY) v.push(entry);
+    else if (first) {
+      first = false;
+      result = entry;
+    }
   }
 
-  return null;
+  return result;
 };
