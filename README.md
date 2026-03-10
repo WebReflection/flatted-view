@@ -2,9 +2,21 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/WebReflection/flatted-view/badge.svg?branch=main)](https://coveralls.io/github/WebReflection/flatted-view?branch=main) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/license/MIT)
 
-It's like [flatted](https://github.com/WebReflection/flatted) but with *Uint8Array* and binary data in mind.
+It's like [flatted](https://github.com/WebReflection/flatted) but with *Uint8Array* and binary data in mind, with broader support for `bigint` and `Uint8Array` views plus *custom types* to satisfy any need.
 
-It also offers customization of any non supported *JSON* type.
+## Features
+
+| feature | status |
+| :--- | :--: |
+| fast | ✅ |
+| recursive (stack based) | ✅ |
+| bigint | ✅ |
+| custom types | ✅ |
+| compact outcome | ✅ |
+| binary format | ✅ |
+| `toJSON` | ✅ |
+| cross PL | *WIP* |
+
 
 ## Supported Types
 
