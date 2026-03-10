@@ -47,7 +47,7 @@ const decoded = decode(data);
 | feature | status |
 | :--- | :--: |
 | fast | ✅ |
-| recursive (stack based) | ✅ |
+| recursion (stack based) | ✅ |
 | bigint | ✅ |
 | custom types | ✅ |
 | compact outcome | ✅ |
@@ -57,6 +57,8 @@ const decoded = decode(data);
 
 
 ## Supported Types
+
+All *JSON* compatible types are in plus more:
 
 | type | bits | value |
 | :--- | :--: | :---: |
@@ -74,6 +76,22 @@ const decoded = decode(data);
 The `custom` optional callback can return either any value or a `view(number[] | Uint8Array)` value that will be directly converted as such.
 
 When the `view(...)` utility is **not** used, the returned value will be encoded via `encode(value)` out of the box, to produce a flatted entry that could fit into the current `output`.
+
+### Recursion
+
+The only types allowed to be recursive are `ARRAY`, `STRING` and `OBJECT`.
+
+Every *typeof* those variant will be parsed only once.
+
+The reason `NUMBER` conversion is not recursive is that it would take much more space to create a *number* space in the array than it takes to have it "*right there*" instead, considering small(*ish*) integers are the norm and floating points are rarely the same spread across conversions.
+
+That's it, if your *custom* type receives a value that is a `typeof value === 'object'` be assured that's the only time you'll receive such value and for it, its original reference, it must return something serializable once and never again.
+
+### Serializables (encoding)
+
+Anything that is *JSON* compatible will survive *encoding* and *decoding*, the `custom(value)` call allows any user to defne a specific return type for a particular instance, without dictating how or what that should be.
+
+Use `view(value)` to return an array of *uint8* values or directly a `Uint8Array` view of your own data, if you don't like the encoding used in this project, that would still allow you to define any custom type you like, including *Map*, *Set*, and what not out there.
 
 ### Numbers
 
