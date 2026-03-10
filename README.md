@@ -29,17 +29,17 @@ When the `view(...)` utility is **not** used, the returned value will be encoded
 
 The `NUMBER` type contains within itself the number *type* and bytes needed to represent the next entries.
 
-| type | value | bits |
+| type | bits | value |
 | :--- | :---: | :--: |
-| int8  | -128 to 127 | 10000001 |
-| int16 | -32768 to 32767 | 10000010 |
-| int32 | -2147483648 to 2147483647 | 10000100 |
-| int64 | up to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) | 10001000 |
-| uint8  | 0 to 255 | 10000011 |
-| uint16 | 0 to 65535 | 10000110 |
-| uint32 | 0 to 4294967295 | 10000111 |
-| uint64 | 0 to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) | 10001100 |
-| float64 | every floaing point | 10001000 |
+| int8  | 10000001 | -128 to 127 |
+| int16 | 10000010 | -32768 to 32767 |
+| int32 | 10000100 | -2147483648 to 2147483647 |
+| int64 | 10001000 | up to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) |
+| uint8  | 10000011 | 0 to 255 |
+| uint16 | 10000110 | 0 to 65535 |
+| uint32 | 10000111 | 0 to 4294967295 |
+| uint64 | 10001100 | 0 to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) |
+| float64 | 10001000 | every floaing point |
 
 #### Variants
 
@@ -70,7 +70,7 @@ const decoded = decode(view, {
       value = new globalThis[value.typed](value.view.buffer);
     return value;
   }
-})
+});
 ```
 
 This example shows a creative, ad-hoc, way to hook yourself into the `custom(value)` logic, preserving more complex values/references from the original encoder of the state.
