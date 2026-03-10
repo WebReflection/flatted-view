@@ -4,6 +4,44 @@
 
 It's like [flatted](https://github.com/WebReflection/flatted) but with *Uint8Array* and binary data in mind, with broader support for `bigint` and `Uint8Array` views plus *custom types* to satisfy any need.
 
+```js
+import { decode, encode, view } from 'https://esm.run/flatted-view';
+
+const data = {
+  nope: false,
+  sure: true,
+  nil: null,
+  object: { o: 'k' },
+  array: [ 'also', 'ok' ],
+  string: '👍',
+  view: new Uint8Array([1, 2, 3]),
+  numbers: [
+    // int8
+    -128, 0, 127,
+    // uint8
+    0, 255,
+    // int16
+    -32768, 0, 32767,
+    // uint16
+    0, 65535,
+    // int32
+    -2147483648, 0, 2147483647,
+    // uint32
+    0, 4294967295,
+    // int64 (accordingly to JS number type)
+    -9007199254740992, 0, 9007199254740991,
+    // bigint
+    -9223372036854775808n, 0n, 9223372036854775807n,
+    // biguint
+    0n, 18446744073709551615n
+  ],
+};
+
+const encoded = encode(data);
+const decoded = decode(data);
+// that's it 👍
+```
+
 ## Features
 
 | feature | status |
