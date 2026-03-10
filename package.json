@@ -8,11 +8,11 @@
       "import": "./src/index.js",
       "types": "./types/index.d.ts"
     },
-    "./decode": {
+    "./decoder": {
       "import": "./src/decode.js",
       "types": "./types/decode.d.ts"
     },
-    "./encode": {
+    "./encoder": {
       "import": "./src/encode.js",
       "types": "./types/encode.d.ts"
     },

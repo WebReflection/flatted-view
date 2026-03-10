@@ -4,6 +4,7 @@ import { I8, I16, I32, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 import { isArray, item, options, dv, v8 } from './utils.js';
 
 const NUMBER_IGNORE = ~(RECURSION | NUMBER);
+const CUSTOM_REVIVE = CUSTOM | I8;
 
 const decoder = new TextDecoder;
 const ignore = item(NULL, null);
@@ -79,9 +80,10 @@ export const decode = (view, { custom = options.custom } = options) => {
     else if (type === TRUE) entry = true;
     else if (type === NULL) entry = null;
 
-    else if (type === CUSTOM) {
+    else if (CUSTOM <= type) {
       const length = number(input, input[index.i++], index);
-      entry = custom(slice(input, length, index));
+      const view = slice(input, length, index);
+      entry = custom(type === CUSTOM_REVIVE ? decode(view) : view);
     }
 
     else if (type & NUMBER) {
@@ -133,3 +135,5 @@ export const decode = (view, { custom = options.custom } = options) => {
 
   return result;
 };
+
+export default decode;

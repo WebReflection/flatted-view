@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type="module">
-    import { encode } from '../src/encode.js';
+    import { encode, view } from '../src/encode.js';
     import { decode } from '../src/decode.js';
     import { ASCII } from './utils.js';
 
@@ -21,22 +21,22 @@
     }
 
     const data = {
-      // v: new Uint8Array([1, 2, 3]),
-      // d: [1, 2, 3],
-      // e: { f: 456, g: ['hello', 'world'], h: 789 },
-      // f: ['d', 'e', 'f'],
+      v: new Uint8Array([1, 2, 3]),
+      d: [1, 2, 3],
+      e: { f: 456, g: ['hello', 'world'], h: 789 },
+      f: ['d', 'e', 'f'],
       i: 123,
       get $bigint() {
         return BigInt(this.i);
       },
-      // toJSON() {
-      //   const bigstring = this.$bigint.toString();
-      //   return { ...this, toJSON: undefined, $bigint: ASCII.encode(bigstring) };
-      // }
+      toJSON() {
+        const bigstring = this.$bigint.toString();
+        return { ...this, toJSON: undefined, $bigint: ASCII.encode(bigstring) };
+      }
     };
 
-    // data.d.push(data);
-    // data.data = data;
+    data.d.push(data);
+    data.data = data;
 
     const encoded = encode(data, {
       custom(value) {

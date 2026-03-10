@@ -14,13 +14,32 @@ const MAX_I32 = MAX_U32 / 2;
 const { isInteger } = Number;
 const { keys } = Object;
 
+let valueOf;
+
+class View {
+  static {
+    valueOf = self => self.#value;
+  }
+  #value;
+  constructor(value) {
+    this.#value = value;
+  }
+}
+
 const encoder = new TextEncoder;
 
 const augment = (output, value) => {
-  if (!(value instanceof Uint8Array))
+  let type = CUSTOM;
+  if (value instanceof View) {
+    value = valueOf(value);
+    if (isArray(value)) value = new Uint8Array(value);
+  }
+  else {
+    type |= I8;
     value = new Uint8Array(encode(value));
+  }
   const length = value.length;
-  output.push(CUSTOM, ...uint(NUMBER, length));
+  output.push(type, ...uint(NUMBER, length));
   push(output, value, length);
 };
 
@@ -193,3 +212,7 @@ function compatible(key) {
       return false;
   }
 }
+
+export const view = value => new View(value);
+
+export default encode;

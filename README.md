@@ -19,14 +19,11 @@ It also offers customization of any non supported *JSON* type.
 | NUMBER | 10000000 | *int* or *float* |
 | VIEW | 10100000 | `new Uint8Array([...])` |
 | RECURSION | 01110000 | 🔁 |
-| CUSTOM | 11111111 | `[...]` or `new Uint8Array([...])` |
+| CUSTOM | 11111110 | value returned as `view(...)` or directly |
 
-The *custom* callback while *encoding* expects either the same value back (encoded as it is) or an array of *uint8* integers or an actual `Uint8Array` generic view for the representation of the specific value within the output.
+The `custom` optional callback can return either any value or a `view(number[] | Uint8Array)` value that will be directly converted as such.
 
-The `CUSTOM` type uses 1 byte to signal next bytes are about the *length* and the value stored for that specific custom value.
-
-It is possible to return `encode(any_value)` to simplify serialization of the *custom type* and it's possible to use `decode(view)` while decoding the array buffer to revive the value as it is.
-
+When the `view(...)` utility is **not** used, the returned value will be encoded via `encode(value)` out of the box, to produce a flatted entry that could fit into the current `output`.
 
 ### Numbers
 
@@ -43,3 +40,37 @@ The `NUMBER` type contains within itself the number *type* and bytes needed to r
 | uint32 | 0 to 4294967295 | 10000111 |
 | uint64 | 0 to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) | 10001100 |
 | float64 | every floaing point | 10001000 |
+
+#### Variants
+
+All variants are meant to signal the "*next move*" for the *decoder* so that it's clear what's needed to be parsed.
+
+This is achieved via combining `OBJECT`, `ARRAY`, `STRING` or with the next amount of bytes needed to retrive a *length* for either the amount of *key/value* pairs or the *length* of the array or string.
+
+The `CUSTOM` type becomes `11111111` when the sonversion of the returned `custom(value)` was implicit, as opposite of returning a `view(...)`.
+
+The `NUMBER` type embeds the amount of needed bytes within its type too, making this module more compact than needed for every supported type.
+
+This also means for a generic number that would fit into a single *byte*, 2 bytes will be used, 3 for 16 bits and 5 for any 32 bit value. 9 is the amount of bytes needed for floating points or 64 bits, including *bigint*, values.
+
+If you need to improve performance or space around specific views that are not `Uint8Array` kind, you can use the `custom(value)` entry point to do so, example:
+
+```js
+const encoded = encode(ref, {
+  custom(value) {
+    if (value instanceof Float32Array)
+      return { typed: 'Float32Array', view: new Uint8Array(value.buffer) }
+    return value;
+  }
+});
+
+const decoded = decode(view, {
+  custom(value) {
+    if (typeof value === 'object' && typeof value?.typed === 'string')
+      value = new globalThis[value.typed](value.view.buffer);
+    return value;
+  }
+})
+```
+
+This example shows a creative, ad-hoc, way to hook yourself into the `custom(value)` logic, preserving more complex values/references from the original encoder of the state.

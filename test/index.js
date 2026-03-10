@@ -1,4 +1,4 @@
-import { encode, decode } from '../src/index.js';
+import { encode, decode, view } from '../src/index.js';
 import { ASCII } from './utils.js';
 
 const assert = (expected, actual) => {
@@ -8,7 +8,7 @@ const assert = (expected, actual) => {
   }
 };
 
-let view = new Uint8Array([1, 2, 3]);
+let v = new Uint8Array([1, 2, 3]);
 
 const data = {
   a: true,
@@ -16,7 +16,7 @@ const data = {
   c: 123,
   d: [1, 2, 3],
   e: { f: 456, g: 'world' },
-  v: view
+  v
 };
 
 let encoded = encode(data);
@@ -28,17 +28,17 @@ assert(decoded.c, 123);
 assert([1, 2, 3].join(','), decoded.d.join(','));
 assert(decoded.e.f, 456);
 assert(decoded.e.g, 'world');
-assert(view.join(','), decoded.v.join(','));
+assert(v.join(','), decoded.v.join(','));
 
 encoded = encode(['a', 'b', 'a']);
 decoded = decode(encoded);
 
 assert(['a', 'b', 'a'].join(','), decoded.join(','));
 
-encoded = encode(view);
+encoded = encode(v);
 decoded = decode(encoded);
 
-assert(view.join(','), decoded.join(','));
+assert(v.join(','), decoded.join(','));
 
 encoded = encode(123n, {
   custom(value) {
@@ -178,7 +178,7 @@ decoded = decode(encoded);
 assert(null, decoded);
 
 encoded = encode([1, 2, 3], {
-  custom: value => new Uint8Array(value)
+  custom: value => view(value)
 });
 
 decoded = decode(encoded);
@@ -211,3 +211,56 @@ decoded = decode(encoded);
 assert([1, 2, 3].join(','), decoded.join(','));
 
 assert(undefined, decode([]));
+
+encoded = encode(-1n);
+decoded = decode(encoded);
+
+assert(-1n, decoded);
+
+encoded = encode({ method() {} });
+decoded = decode(encoded);
+
+assert(Object.keys(decoded).length, 0);
+
+encoded = encode({}, {
+  custom: () => 1,
+});
+decoded = decode(encoded, {
+  custom: value => value,
+});
+
+assert(1, decoded);
+
+encoded = encode({}, {
+  custom: () => 123,
+});
+decoded = decode(encoded);
+
+assert(123, decoded);
+
+encoded = encode(Symbol('nope'), {
+  custom: value => value.description,
+});
+decoded = decode(encoded);
+
+assert('nope', decoded);
+
+encoded = encode(new Float32Array([1.23]), {
+  custom(value) {
+    if (value instanceof Float32Array)
+      return { typed: 'Float32Array', view: new Uint8Array(value.buffer) }
+    return value;
+  }
+});
+
+decoded = decode(encoded, {
+  custom(value) {
+    if (typeof value === 'object' && typeof value?.typed === 'string')
+      value = new globalThis[value.typed](value.view.buffer);
+    return value;
+  }
+});
+
+assert(true, decoded instanceof Float32Array);
+assert('1.23', decoded[0].toFixed(2));
+
