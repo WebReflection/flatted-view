@@ -1,7 +1,7 @@
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
 import { L8, L16, L32, L64 } from './constants.js';
 
-import { isArray, item, dv, v8 } from './utils.js';
+import { isArray, item, options, dv, v8 } from './utils.js';
 
 const U8  = 2 ** 8;
 const U16 = 2 ** 16;
@@ -18,8 +18,7 @@ const encoder = new TextEncoder;
 
 const augment = (output, value) => {
   const length = value.length;
-  output.push(CUSTOM);
-  number(output, length);
+  output.push(CUSTOM, ...uint(NUMBER, length));
   push(output, isArray(value) ? new Uint8Array(value) : value, length);
 };
 
@@ -75,7 +74,9 @@ const uint = (type, length) => {
     dv.setUint32(0, length, true);
     return [type | L32, v8[0], v8[1], v8[2], v8[3]];
   }
+  /* c8 ignore next */
   dv.setFloat64(0, length, true);
+  /* c8 ignore next */
   return [type | L64, ...v8];
 };
 
@@ -96,7 +97,7 @@ const uint = (type, length) => {
  * @param {Options} options
  * @returns
  */
-export const encode = (data, { output = [], custom = v => v } = {}) => {
+export const encode = (data, { output = [], custom = options.custom } = options) => {
   const cache = new Map;
   const stack = [item(null, data)];
   while (stack.length) {
@@ -117,13 +118,19 @@ export const encode = (data, { output = [], custom = v => v } = {}) => {
           if (cache.has(v)) output.push(...uint(RECURSION, cache.get(v)));
           else {
             cache.set(v, output.length);
-            if ('toJSON' in v) {
+            if ('toJSON' in v && typeof v.toJSON === 'function') {
               const value = v.toJSON();
-              stack.push(item(null, value === v ? null : value));
+              if (value === v) output.push(NULL);
+              else stack.push(item(null, value));
             }
             else {
               const value = custom(v);
               if (value !== v) augment(output, value);
+              else if (v instanceof Uint8Array) {
+                let length = v.length;
+                output.push(...uint(ARRAY | NUMBER, length));
+                push(output, v, length);
+              }
               else if (isArray(v)) {
                 let length = v.length;
                 output.push(...uint(ARRAY, length));

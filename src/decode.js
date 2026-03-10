@@ -1,7 +1,7 @@
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
 import { L8, L16, L32, LEN } from './constants.js';
 
-import { isArray, item, dv, v8 } from './utils.js';
+import { isArray, item, options, dv, v8 } from './utils.js';
 
 const decoder = new TextDecoder;
 const ignore = item(NULL, null);
@@ -32,6 +32,12 @@ const number = (input, type, index) => {
   return floating(input, index);
 };
 
+const slice = (input, length, index) => {
+  const i = index.i;
+  index.i += length;
+  return input.slice(i, i + length);
+};
+
 const string = (input, cache, type, index) => {
   const known = index.i - 1;
   const length = uint(input, type, index);
@@ -51,12 +57,13 @@ const uint = (input, type, index) => {
 
   v8[2] = input[index.i++];
   v8[3] = input[index.i++];
-  if (type & L32) return dv.getUint32(0, true);
 
+  if (type & L32) return dv.getUint32(0, true);
+  /* c8 ignore next */
   return floating(input, index);
 };
 
-export const decode = view => {
+export const decode = (view, { custom = options.custom } = options) => {
   const input = isArray(view) ? new Uint8Array(view) : view;
   const cache = new Map;
   const index = { i: 0 };
@@ -76,11 +83,17 @@ export const decode = view => {
     else if (type === NULL) entry = null;
 
     else if (type === CUSTOM) {
-      // TODO: implement custom decoding
-      throw new Error('not implemented');
+      const length = uint(input, input[index.i++], index);
+      entry = custom(slice(input, length, index));
     }
 
-    else if (type & NUMBER) entry = number(input, type, index);
+    else if (type & NUMBER) {
+      if (type & ARRAY) {
+        const length = uint(input, type, index);
+        entry = slice(input, length, index);
+      }
+      else entry = number(input, type, index);
+    }
 
     else {
       const kind = type & ~LEN;
@@ -108,12 +121,12 @@ export const decode = view => {
       }
     }
 
-    if (k === OBJECT) v[prop] = entry;
-    else if (k === ARRAY) v.push(entry);
-    else if (first) {
+    if (first) {
       first = false;
       result = entry;
     }
+    else if (k === OBJECT) v[prop] = entry;
+    else if (k === ARRAY) v.push(entry);
   }
 
   return result;

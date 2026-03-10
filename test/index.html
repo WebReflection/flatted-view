@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="module">
+    import { encode } from '../src/encode.js';
+    import { decode } from '../src/decode.js';
+    import { ASCII } from './utils.js';
+
+    import './index.js';
+
+    const ASCII = {
+      encode(value) {
+        const output = [];
+        for (let i = 0; i < value.length; i++)
+          output.push(value.charCodeAt(i));
+        return output;
+      },
+      decode: value => String.fromCharCode(...value),
+    };
+
+    class Wrap {
+      #value;
+      constructor(value) {
+        this.#value = value;
+      }
+      valueOf() {
+        return this.#value;
+      }
+    }
+
+    const data = {
+      // v: new Uint8Array([1, 2, 3]),
+      // d: [1, 2, 3],
+      // e: { f: 456, g: ['hello', 'world'], h: 789 },
+      // f: ['d', 'e', 'f'],
+      i: 123,
+      get $bigint() {
+        return BigInt(this.i);
+      },
+      // toJSON() {
+      //   const bigstring = this.$bigint.toString();
+      //   return { ...this, toJSON: undefined, $bigint: ASCII.encode(bigstring) };
+      // }
+    };
+
+    // data.d.push(data);
+    // data.data = data;
+
+    debugger;
+    const encoded = encode(data, {
+      custom(value) {
+        if (typeof value === 'object' && '$bigint' in value && typeof value.$bigint === 'bigint')
+          return encode({ ...value, $bigint: ASCII.encode(value.$bigint.toString()) });
+        return value;
+      }
+    });
+    
+    console.log(decode(encoded, {
+      custom(value) {
+        const decoded = decode(value);
+        console.log('custom decode', decoded);
+        if (typeof decoded === 'object' && '$bigint' in decoded)
+          decoded.$bigint = BigInt(ASCII.decode(decoded.$bigint));
+        return decoded;
+      }
+    }));
+
+    const AMOUNT = 5000;
+
+    let chain = ['leaf'];
+
+    for (let i = 0; i < AMOUNT; i++)
+      chain = [chain];
+
+    console.time('encode');
+    chain = encode(chain);
+    console.timeEnd('encode');
+
+    console.time('decode');
+    chain = decode(chain);
+    console.timeEnd('decode');
+
+    for (let i = 0; i < AMOUNT; i++)
+      chain = chain[0];
+
+    console.log(chain);
+
+  </script>
+</head>
+</html>

@@ -1,0 +1,9 @@
+.DS_Store
+.nyc_output
+node_modules/
+coverage/
+__pycache__
+
+# Go artifacts
+*.test
+*.out

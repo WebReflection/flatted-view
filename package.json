@@ -1,3 +1,56 @@
 {
-  "type": "module"
+  "type": "module",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "types": "./types/index.d.ts"
+    },
+    "./decode": {
+      "import": "./src/decode.js",
+      "types": "./types/decode.d.ts"
+    },
+    "./encode": {
+      "import": "./src/encode.js",
+      "types": "./types/encode.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "name": "flatted-view",
+  "version": "0.0.0",
+  "description": "Flatted like approach brought to Uint8Array compatible values",
+  "files": [
+    "src",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "coverage": "mkdir -p ./coverage; c8 report --reporter=text-lcov > ./coverage/lcov.info",
+    "test": "c8 node test/index.js",
+    "ts": "rm -rf types && tsc -p ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WebReflection/flatted-view.git"
+  },
+  "keywords": [
+    "circular",
+    "recursive",
+    "fast",
+    "binary",
+    "minimal"
+  ],
+  "author": "Andrea Giammarchi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/WebReflection/flatted-view/issues"
+  },
+  "homepage": "https://github.com/WebReflection/flatted-view#readme",
+  "devDependencies": {
+    "c8": "^11.0.0",
+    "typescript": "^5.9.3"
+  }
 }
