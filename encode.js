@@ -1,4 +1,4 @@
-import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION } from './constants.js';
+import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
 import { L8, L16, L32, L64 } from './constants.js';
 
 import { dv, v8 } from './utils.js';
@@ -12,18 +12,24 @@ const I16 = U16 / 2;
 const I32 = U32 / 2;
 
 const { isArray } = Array;
-const { isView } = ArrayBuffer;
 const { isInteger } = Number;
 const { keys } = Object;
 
 const encoder = new TextEncoder;
+
+const augment = (output, value) => {
+  const length = value.length;
+  output.push(CUSTOM);
+  number(output, length);
+  push(output, isArray(value) ? new Uint8Array(value) : value, length);
+};
 
 const floating = (output, value) => {
   dv.setFloat64(0, value, true);
   output.push(NUMBER | L64, ...v8);
 };
 
-const item = (k, v, t) => ({ k, v, t });
+const item = (k, v) => ({ k, v });
 
 const number = (output, value) => {
   if (isInteger(value)) {
@@ -44,6 +50,11 @@ const number = (output, value) => {
   else floating(output, value);
 };
 
+const push = (output, bytes, length) => {
+  for (let i = 0; i < length; i += I16)
+    output.push(...bytes.subarray(i, i + I16));
+};
+
 const string = (output, cache, data) => {
   if (cache.has(data))
     output.push(...uint(RECURSION, cache.get(data)));
@@ -52,8 +63,7 @@ const string = (output, cache, data) => {
     const length = bytes.length;
     cache.set(data, output.length);
     output.push(...uint(STRING, length));
-    for (let i = 0; i < length; i += I16)
-      output.push(...bytes.subarray(i, i + I16));
+    push(output, bytes, length);
   }
 };
 
@@ -72,56 +82,83 @@ const uint = (type, length) => {
   return [type | L64, ...v8];
 };
 
-export const encode = (data, output = []) => {
+/**
+ * @template T
+ * @callback custom
+ * @param {T} value
+ * @returns {T | number[] | Uint8Array}
+ */
+
+/**
+ * @typedef {{ output?: number[], custom?: custom }} Options
+ */
+
+/**
+ * Encodes data as uint8 values
+ * @param {any} data
+ * @param {Options} options
+ * @returns
+ */
+export const encode = (data, { output = [], custom = v => v } = {}) => {
   const cache = new Map;
-  const stack = [item(null, data, typeof data)];
+  const stack = [item(null, data)];
   let i = 0;
   while (i < stack.length) {
-    const { k, v, t } = stack[i++];
+    const { k, v } = stack[i++];
     if (k !== null) string(output, cache, k);
-    switch (t) {
+    switch (typeof v) {
       case 'boolean':
         output.push(v ? TRUE : FALSE);
         break;
-      case 'string':
-        string(output, cache, v);
-        break;
       case 'number':
         number(output, v);
+        break;
+      case 'string':
+        string(output, cache, v);
         break;
       case 'object':
         if (v) {
           if (cache.has(v)) output.push(...uint(RECURSION, cache.get(v)));
           else {
             cache.set(v, output.length);
-            if (isArray(v)) {
-              const length = v.length;
-              output.push(...uint(ARRAY, length));
-              for (let index = 0; index < length; index++) {
-                const value = v[index];
-                const type = typeof value;
-                stack.push(item(null, value, type));
-              }
+            if ('toJSON' in v) {
+              const value = v.toJSON();
+              stack.push(item(null, value === v ? null : value));
             }
             else {
-              const own = keys(v).filter(compatible, v);
-              const length = own.length;
-              output.push(...uint(OBJECT, length));
-              for (let index = 0; index < length; index++) {
-                const key = own[index];
-                const value = v[key];
-                stack.push(item(key, value, typeof value));
+              const value = custom(v);
+              if (value !== v) augment(output, value);
+              else if (isArray(v)) {
+                const length = v.length;
+                output.push(...uint(ARRAY, length));
+                for (let index = 0; index < length; index++)
+                  stack.push(item(null, v[index]));
+              }
+              else {
+                const own = keys(v).filter(compatible, v);
+                const length = own.length;
+                output.push(...uint(OBJECT, length));
+                for (let index = 0; index < length; index++) {
+                  const key = own[index];
+                  stack.push(item(key, v[key]));
+                }
               }
             }
           }
           break;
         }
-      default:
+      case 'undefined':
         output.push(NULL);
         break;
+      default: {
+        const value = custom(v);
+        if (value !== v) augment(output, value);
+        else output.push(NULL);
+        break;
+      }
     }
   }
-  return isView(output) ? output : new Uint8Array(output);
+  return output;
 };
 
 function compatible(key) {
