@@ -1,7 +1,7 @@
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
 import { L8, L16, L32, L64 } from './constants.js';
 
-import { dv, v8 } from './utils.js';
+import { isArray, dv, v8 } from './utils.js';
 
 const U8  = 2 ** 8;
 const U16 = 2 ** 16;
@@ -11,7 +11,6 @@ const I8  = U8 / 2;
 const I16 = U16 / 2;
 const I32 = U32 / 2;
 
-const { isArray } = Array;
 const { isInteger } = Number;
 const { keys } = Object;
 
@@ -102,9 +101,8 @@ const uint = (type, length) => {
 export const encode = (data, { output = [], custom = v => v } = {}) => {
   const cache = new Map;
   const stack = [item(null, data)];
-  let i = 0;
-  while (i < stack.length) {
-    const { k, v } = stack[i++];
+  while (stack.length) {
+    const { k, v } = stack.pop();
     if (k !== null) string(output, cache, k);
     switch (typeof v) {
       case 'boolean':
@@ -129,17 +127,17 @@ export const encode = (data, { output = [], custom = v => v } = {}) => {
               const value = custom(v);
               if (value !== v) augment(output, value);
               else if (isArray(v)) {
-                const length = v.length;
+                let length = v.length;
                 output.push(...uint(ARRAY, length));
-                for (let index = 0; index < length; index++)
-                  stack.push(item(null, v[index]));
+                while (length--)
+                  stack.push(item(null, v[length]));
               }
               else {
                 const own = keys(v).filter(compatible, v);
-                const length = own.length;
+                let length = own.length;
                 output.push(...uint(OBJECT, length));
-                for (let index = 0; index < length; index++) {
-                  const key = own[index];
+                while (length--) {
+                  const key = own[length];
                   stack.push(item(key, v[key]));
                 }
               }
