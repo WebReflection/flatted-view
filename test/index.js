@@ -1,4 +1,4 @@
-import { encode, decode, view } from '../src/index.js';
+import { Shared, encode, decode, view } from '../src/index.js';
 import { ASCII } from './utils.js';
 
 const assert = (expected, actual) => {
@@ -279,3 +279,15 @@ encoded = encode([2 ** 4, 2 ** 8, 2 ** 16, 2 ** 32]);
 decoded = decode(encoded);
 
 assert([2 ** 4, 2 ** 8, 2 ** 16, 2 ** 32].join(','), decoded.join(','));
+
+const shared = new Shared(new SharedArrayBuffer(8, { maxByteLength: 2 ** 8 }), 4);
+
+encoded = encode([1, 2, 3, 4, 5, 6, 7, 8], { output: shared });
+decoded = decode(encoded);
+
+assert([1, 2, 3, 4, 5, 6, 7, 8].join(','), decoded.join(','));
+
+encoded = encode([1, 2, 3, 4], { output: shared.reset() });
+decoded = decode(encoded);
+
+assert([1, 2, 3, 4].join(','), decoded.join(','));

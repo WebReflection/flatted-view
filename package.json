@@ -16,6 +16,10 @@
       "import": "./src/encode.js",
       "types": "./types/encode.d.ts"
     },
+    "./shared": {
+      "import": "./src/shared.js",
+      "types": "./types/shared.d.ts"
+    },
     "./package.json": "./package.json"
   },
   "name": "flatted-view",

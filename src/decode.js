@@ -11,23 +11,52 @@ const CUSTOM_REVIVE = CUSTOM | I8;
 const decoder = new TextDecoder;
 const ignore = item(NULL, null);
 
+/** @typedef {{ i: number }} Index */
+
+/** @typedef {number[] | Uint8Array | import('./shared.js').default} Input */
+
+/** @typedef {{ custom?: (value: unknown) => unknown }} Options */
+
+/**
+ * @param {Uint8Array} input
+ * @param {Index} index
+ * @param {boolean} isBigUint
+ * @returns {bigint}
+ */
 const bigint = (input, index, isBigUint) => {
   for (let i = 0; i < 8; i++) v8[i] = input[index.i++];
   return isBigUint ? dv.getBigUint64(0, true) : dv.getBigInt64(0, true);
 };
 
+/**
+ * @param {Uint8Array} input
+ * @param {Index} index
+ * @returns
+ */
 const floating = (input, index) => {
   for (let j = 4; j < 8; j++) v8[j] = input[index.i++];
   return dv.getFloat64(0, true);
 };
 
+/**
+ * @param {Uint8Array} input
+ * @param {Map<number, unknown>} cache
+ * @param {Index} index
+ * @returns
+ */
 const key = (input, cache, index) => {
   const type = input[index.i++];
   return (type & ~LEN) === RECURSION ?
-    cache.get(number(input, type, index)) :
+    /** @type {string} */ (cache.get(number(input, type, index))) :
     string(input, cache, type, index);
 };
 
+/**
+ * @param {Uint8Array} input
+ * @param {number} type
+ * @param {Index} index
+ * @returns
+ */
 const number = (input, type, index) => {
   type &= NUMBER_IGNORE;
   v8[0] = input[index.i++];
@@ -47,12 +76,25 @@ const number = (input, type, index) => {
   return floating(input, index);
 };
 
+/**
+ * @param {Uint8Array} input
+ * @param {number} length
+ * @param {Index} index
+ * @returns
+ */
 const slice = (input, length, index) => {
   const i = index.i;
   index.i += length;
   return input.slice(i, i + length);
 };
 
+/**
+ * @param {Uint8Array} input
+ * @param {Map<number, unknown>} cache
+ * @param {number} type
+ * @param {Index} index
+ * @returns {string}
+ */
 const string = (input, cache, type, index) => {
   const known = index.i - 1;
   const length = number(input, type, index);
@@ -64,18 +106,20 @@ const string = (input, cache, type, index) => {
 };
 
 /**
- * @typedef {{ custom?: (value: unknown) => unknown }} Options
- */
-
-/**
- * @param {number[] | Uint8Array} view
+ * @param {Input} view
  * @param {Options} [options] 
- * @returns {unknown}
+ * @returns {unknown?}
  */
 export const decode = (view, { custom = options.custom } = options) => {
   const input = isArray(view) ? new Uint8Array(view) : view;
+
+  /** @type {Map<number, unknown>} */
   const cache = new Map;
+
+  /** @type {Index} */
   const index = { i: 0 };
+
+  /** @type {{ k: number, v: unknown }[]} */
   const stack = input.length ? [ignore] : [];
 
   let first = true, result, entry, prop;
@@ -141,7 +185,7 @@ export const decode = (view, { custom = options.custom } = options) => {
       result = entry;
     }
     else if (k === OBJECT) v[prop] = entry;
-    else if (k === ARRAY) v.push(entry);
+    else if (k === ARRAY) (/** @type {Array<unknown>} */ (v)).push(entry);
   }
 
   return result;

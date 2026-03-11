@@ -20,20 +20,37 @@ let valueOf;
 
 class View {
   static {
+    /**
+     * @param {View} self
+     * @returns
+     */
     valueOf = self => self.#value;
   }
+
   #value;
+
+  /**
+   * @param {number[] | Uint8Array} value 
+   */
   constructor(value) {
-    this.#value = value;
+    this.#value = /** @type {number[] | Uint8Array} */ (value);
   }
 }
 
 const encoder = new TextEncoder;
 
+/**
+ * @param {Output} output
+ * @param {number} type
+ */
 const gr8 = (output, type) => {
   output.push(type, ...v8);
 };
 
+/**
+ * @param {Output} output
+ * @param {unknown} value
+ */
 const augment = (output, value) => {
   let type = CUSTOM;
   if (value instanceof View) {
@@ -44,12 +61,16 @@ const augment = (output, value) => {
     type |= I8;
     value = new Uint8Array(encode(value));
   }
-  const length = value.length;
   output.push(type);
+  const length = /** @type {Uint8Array} */ (value).length;
   uint(output, NUMBER, length);
-  push(output, value, length);
+  push(output, /** @type {Uint8Array} */ (value), length);
 };
 
+/**
+ * @param {Output} output
+ * @param {bigint} value
+ */
 const bigint = (output, value) => {
   if (value < 0n) {
     dv.setBigInt64(0, value, true);
@@ -61,11 +82,19 @@ const bigint = (output, value) => {
   }
 };
 
+/**
+ * @param {Output} output
+ * @param {number} value
+ */
 const floating = (output, value) => {
   dv.setFloat64(0, value, true);
   gr8(output, NUMBER | F64);
 };
 
+/**
+ * @param {Output} output
+ * @param {number} value
+ */
 const number = (output, value) => {
   if (isInteger(value)) {
     if (value < 0) {
@@ -88,11 +117,21 @@ const number = (output, value) => {
   else floating(output, value);
 };
 
+/**
+ * @param {Output} output
+ * @param {Uint8Array} bytes
+ * @param {number} length
+ */
 const push = (output, bytes, length) => {
   for (let i = 0; i < length; i += I16)
     output.push(...bytes.subarray(i, i + I16));
 };
 
+/**
+ * @param {Output} output
+ * @param {Map<unknown, number>} cache
+ * @param {string} data
+ */
 const string = (output, cache, data) => {
   if (cache.has(data))
     uint(output, RECURSION, cache.get(data));
@@ -105,6 +144,11 @@ const string = (output, cache, data) => {
   }
 };
 
+/**
+ * @param {Output} output
+ * @param {number} type
+ * @param {number} length
+ */
 const uint = (output, type, length) => {
   if (length < MAX_U8)
     output.push(type | U8, length);
@@ -131,7 +175,11 @@ const uint = (output, type, length) => {
  */
 
 /**
- * @typedef {{ output?: number[], custom?: custom }} Options
+ * @typedef {number[] | import('./shared.js').default} Output
+ */
+
+/**
+ * @typedef {{ output?: Output, custom?: custom }} Options
  */
 
 /**
@@ -210,6 +258,11 @@ export const encode = (data, { output = [], custom = options.custom } = options)
   return output;
 };
 
+/**
+ * @this {Record<string, unknown>}
+ * @param {string} key
+ * @returns
+ */
 function compatible(key) {
   switch (typeof this[key]) {
     case 'bigint':
