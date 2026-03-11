@@ -1,0 +1,7 @@
+name = "flatted_view"
+
+[files]
+"./python/__init__.py" = "./flatted_view/__init__.py"
+"./python/constants.py" = "./flatted_view/constants.py"
+"./python/decode.py" = "./flatted_view/decode.py"
+"./python/encode.py" = "./flatted_view/encode.py"
