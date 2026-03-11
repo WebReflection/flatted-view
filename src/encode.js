@@ -124,7 +124,7 @@ const number = (output, value) => {
  */
 const push = (output, bytes, length) => {
   for (let i = 0; i < length; i += I16)
-    output.push(...bytes.subarray(i, i + I16));
+    output.push.apply(output, bytes.subarray(i, i + I16));
 };
 
 /**

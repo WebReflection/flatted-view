@@ -124,18 +124,38 @@ This also means for a generic number that would fit into a single *byte*, 2 byte
 If you need to improve performance or space around specific views that are not `Uint8Array` kind, you can use the `custom(value)` entry point to do so, example:
 
 ```js
+import { encode, decode } from 'https://esm.run/flatted-view';
+
+const serialize = (name, details) => ({ '🔐': [name, details] });
+
 const encoded = encode(ref, {
   custom(value) {
-    if (value instanceof Float32Array)
-      return { typed: 'Float32Array', view: new Uint8Array(value.buffer) }
+    if (value instanceof ArrayBuffer)
+      return serialize('ArrayBuffer', new Uint8Array(value));
+
+    if (ArrayByffer.isView(value)) {
+      const { BYTES_PER_ELEMENT, byteOffset, buffer, length } = value;
+      const args = [new Uint8Array(buffer), byteOffset];
+      if ((buffer.byteLength - byteOffset) / BYTES_PER_ELEMENT)
+        args.push(length);
+      return serialize(value.constructor.name, args);
+    }
+
     return value;
   }
 });
 
-const decoded = decode(view, {
+const decoded = decode(encoded, {
   custom(value) {
-    if (typeof value === 'object' && typeof value?.typed === 'string')
-      value = new globalThis[value.typed](value.view.buffer);
+    if (typeof value === 'object' && '🔐' in value) {
+      const [name, args] = value['🔐'];
+      if (name === 'ArrayBuffer')
+        return args.buffer;
+
+      const View = globalThis[name];
+      args[0] = args[0].buffer;
+      return new View(...args);
+    }
     return value;
   }
 });
