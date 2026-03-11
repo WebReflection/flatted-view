@@ -291,3 +291,15 @@ encoded = encode([1, 2, 3, 4], { output: shared.reset() });
 decoded = decode(encoded);
 
 assert([1, 2, 3, 4].join(','), decoded.join(','));
+
+assert(1, encode('').length);
+assert('', decode(encode('')));
+
+assert(['a', '', '', 'b'].join(','), decode(encode(['a', '', '', 'b'])).join(','));
+
+assert(1, encode([]).length);
+assert(0, decode(encode([])).length);
+
+assert(1, encode({}).length);
+
+assert([0, 1, 0, 'a', 0, '', 0, 'b'].join(','), decode(encode([0, 1, 0, 'a', 0, '', 0, 'b'])).join(','));

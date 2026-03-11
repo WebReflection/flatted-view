@@ -38,7 +38,7 @@ const data = {
 };
 
 const encoded = encode(data);
-const decoded = decode(data);
+const decoded = decode(encoded);
 // that's it 👍
 ```
 
@@ -46,7 +46,7 @@ const decoded = decode(data);
 
 | feature | description |
 | :--- | :--: |
-| fast | smart cache and battle tested logic |
+| fast | smart cache and battle-tested logic |
 | recursion (stack based) | 5K nested arrays or literals? not a problem! |
 | bigint | compatible out of the box |
 | custom types | add any type you like, no fuss attached |
@@ -58,7 +58,7 @@ const decoded = decode(data);
 
 ## Supported Types
 
-All *JSON* compatible types are in plus more:
+All JSON-compatible types are supported, plus more:
 
 | type | bits | value |
 | :--- | :--: | :---: |
@@ -68,30 +68,30 @@ All *JSON* compatible types are in plus more:
 | OBJECT | `00010000` | `{...}` |
 | ARRAY | `00100000` | `[...]` |
 | STRING | `01000000` | `"..."` |
-| NUMBER | `10000000` | *int* or *float* |
+| NUMBER | `10000000` | *int* or *float* or *bigint* |
 | VIEW | `10100000` | `new Uint8Array([...])` |
 | RECURSION | `01110000` | 🔁 |
 | CUSTOM | `11111110` | value returned as `view(...)` or directly |
 
 The `custom` optional callback can return either any value or a `view(number[] | Uint8Array)` value that will be directly converted as such.
 
-When the `view(...)` utility is **not** used, the returned value will be encoded via `encode(value)` out of the box, to produce a flatted entry that could fit into the current `output`.
+When the `view(...)` utility is **not** used, the returned value is encoded via `encode(value)` so that it fits into the current `output`.
 
 ### Recursion
 
 The only types allowed to be recursive are `ARRAY`, `STRING` and `OBJECT`.
 
-Every *typeof* those variant will be parsed only once.
+Each of those variants is parsed only once (by reference).
 
-The reason `NUMBER` conversion is not recursive is that it would take much more space to create a *number* space in the array than it takes to have it "*right there*" instead, considering small(*ish*) integers are the norm and floating points are rarely the same spread across conversions.
+The reason `NUMBER` is not recursive is that storing numbers inline takes less space than creating a separate number table, especially since small integers are the norm and floating-point values are rarely duplicated.
 
-That's it, if your *custom* type receives a value that is a `typeof value === 'object'` be assured that's the only time you'll receive such value and for it, its original reference, it must return something serializable once and never again.
+If your custom handler receives a value with `typeof value === 'object'`, rest assured that is the only time you will see that reference; it must return something serializable once, and that result is reused for any later occurrence.
 
 ### Serializables (encoding)
 
-Anything that is *JSON* compatible will survive *encoding* and *decoding*, the `custom(value)` call allows any user to defne a specific return type for a particular instance, without dictating how or what that should be.
+Anything JSON-compatible survives encoding and decoding. The `custom(value)` callback lets you define a specific return type for a given value without dictating how or what that should be.
 
-Use `view(value)` to return an array of *uint8* values or directly a `Uint8Array` view of your own data, if you don't like the encoding used in this project, that would still allow you to define any custom type you like, including *Map*, *Set*, and what not out there.
+Use `view(value)` to return an array of `uint8` values or a `Uint8Array` view of your own data. If you prefer a different encoding, you can still define any custom type—including `Map`, `Set`, and others.
 
 ### Numbers
 
@@ -107,19 +107,19 @@ The `NUMBER` type contains within itself the number *type* and bytes needed to r
 | uint16 | `10000110` | 0 to 65535 |
 | uint32 | `10000111` | 0 to 4294967295 |
 | uint64 | `10001100` | 0 to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) |
-| float64 | `10001000` | every floaing point |
+| float64 | `10001000` | every floating point |
 
 #### Variants
 
 All variants are meant to signal the "*next move*" for the *decoder* so that it's clear what's needed to be parsed.
 
-This is achieved via combining `OBJECT`, `ARRAY`, `STRING` or with the next amount of bytes needed to retrive a *length* for either the amount of *key/value* pairs or the *length* of the array or string.
+This is achieved by combining `OBJECT`, `ARRAY`, or `STRING` with the number of bytes needed to retrieve a *length* (for key/value pairs, or for the array or string).
 
-The `CUSTOM` type becomes `11111111` when the sonversion of the returned `custom(value)` was implicit, as opposite of returning a `view(...)`.
+The `CUSTOM` type becomes `11111111` when the value returned by `custom(value)` was encoded implicitly, as opposed to returning a `view(...)`.
 
-The `NUMBER` type embeds the amount of needed bytes within its type too, making this module more compact than needed for every supported type.
+The `NUMBER` type embeds the byte length in its type as well, so the format stays compact for every supported type.
 
-This also means for a generic number that would fit into a single *byte*, 2 bytes will be used, 3 for 16 bits and 5 for any 32 bit value. 9 is the amount of bytes needed for floating points or 64 bits, including *bigint*, values.
+So a number that fits in a single byte uses 2 bytes total; 16-bit values use 3 bytes, 32-bit values use 5 bytes, and floating-point or 64-bit (including *bigint*) values use 9 bytes.
 
 If you need to improve performance or space around specific views that are not `Uint8Array` kind, you can use the `custom(value)` entry point to do so, example:
 
@@ -128,12 +128,12 @@ import { encode, decode } from 'https://esm.run/flatted-view';
 
 const serialize = (name, details) => ({ '🔐': [name, details] });
 
-const encoded = encode(ref, {
+const encoded = encode(data, {
   custom(value) {
     if (value instanceof ArrayBuffer)
       return serialize('ArrayBuffer', new Uint8Array(value));
 
-    if (ArrayByffer.isView(value)) {
+    if (ArrayBuffer.isView(value)) {
       const { BYTES_PER_ELEMENT, byteOffset, buffer, length } = value;
       const args = [new Uint8Array(buffer), byteOffset];
       if ((buffer.byteLength - byteOffset) / BYTES_PER_ELEMENT)
@@ -161,4 +161,23 @@ const decoded = decode(encoded, {
 });
 ```
 
-This example shows a creative, ad-hoc, way to hook yourself into the `custom(value)` logic, preserving more complex values/references from the original encoder of the state.
+This example shows a practical way to hook into the `custom(value)` logic and preserve complex values or references from the encoded state.
+
+## Encoding in details
+
+```js
+NUMERIC_ONLY = NUMBER | RECURSION
+// always 1 byte + bytes needed to represent it
+[NUMERIC_ONLY | u/int8, byte]
+[NUMERIC_ONLY | u/int16, ...[byte, byte]]
+[NUMERIC_ONLY | u/int32, ...[byte, byte, byte, byte]]
+[NUMERIC_ONLY | u/int64 | float | bigint, ...[byte, byte, byte, byte, byte, byte, byte, byte]]
+
+// STRING are the same as NUMERIC_ONLY for the length + UTF8 bytes
+[STRING | size, ...size_bytes, ...utf8_chars]
+
+// ARRAY are the same as NUMERIC_ONLY for the length + bytes per entry
+[ARRAY | size, ...size_bytes, ...array_entries]
+
+// // ARRAY are the same as NUMERIC_ONLY for the key/value pairs + bytes per entry
+```
