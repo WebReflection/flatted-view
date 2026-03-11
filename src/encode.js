@@ -133,7 +133,9 @@ const push = (output, bytes, length) => {
  * @param {string} data
  */
 const string = (output, cache, data) => {
-  if (cache.has(data))
+  if (data === '')
+    output.push(STRING);
+  else if (cache.has(data))
     uint(output, RECURSION, cache.get(data));
   else {
     const bytes = encoder.encode(data);
@@ -150,7 +152,9 @@ const string = (output, cache, data) => {
  * @param {number} length
  */
 const uint = (output, type, length) => {
-  if (length < MAX_U8)
+  if (length === 0)
+    output.push(type);
+  else if (length < MAX_U8)
     output.push(type | U8, length);
   else if (length < MAX_U16) {
     dv.setUint16(0, length, true);

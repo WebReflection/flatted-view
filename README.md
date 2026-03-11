@@ -167,17 +167,22 @@ This example shows a practical way to hook into the `custom(value)` logic and pr
 
 ```js
 NUMERIC_ONLY = NUMBER | RECURSION
-// always 1 byte + bytes needed to represent it
+// always 1 byte + bytes needed to represent it unless value is 0
+[NUMERIC_ONLY] // if value is 0
 [NUMERIC_ONLY | u/int8, byte]
 [NUMERIC_ONLY | u/int16, ...[byte, byte]]
 [NUMERIC_ONLY | u/int32, ...[byte, byte, byte, byte]]
 [NUMERIC_ONLY | u/int64 | float | bigint, ...[byte, byte, byte, byte, byte, byte, byte, byte]]
 
 // STRING are the same as NUMERIC_ONLY for the length + UTF8 bytes
+[STRING] // if string is empty
 [STRING | size, ...size_bytes, ...utf8_chars]
 
 // ARRAY are the same as NUMERIC_ONLY for the length + bytes per entry
+[ARRAY] // if length is 0
 [ARRAY | size, ...size_bytes, ...array_entries]
 
 // // ARRAY are the same as NUMERIC_ONLY for the key/value pairs + bytes per entry
+[OBJECT] // if no keys
+[OBJECT | kv_size, ...kv_size_butes, ...kv_pairs]
 ```

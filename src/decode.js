@@ -59,6 +59,9 @@ const key = (input, cache, index) => {
  */
 const number = (input, type, index) => {
   type &= NUMBER_IGNORE;
+
+  if (type === 0) return type;
+
   v8[0] = input[index.i++];
 
   if (type === U8) return dv.getUint8(0);
@@ -96,6 +99,7 @@ const slice = (input, length, index) => {
  * @returns {string}
  */
 const string = (input, cache, type, index) => {
+  if (type === STRING) return '';
   const known = index.i - 1;
   const length = number(input, type, index);
   const i = index.i;

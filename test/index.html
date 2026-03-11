@@ -8,7 +8,10 @@
     import { decode } from '../src/decode.js';
     import { ASCII } from './utils.js';
 
-    import './index.js';
+    globalThis.encode = encode;
+    globalThis.decode = decode;
+
+    console.log(decode(encode([1, new Uint8Array(0), 2])));
 
     class Wrap {
       #value;
@@ -75,6 +78,7 @@
 
     console.log(chain);
 
+    import('./index.js');
   </script>
 </head>
 </html>

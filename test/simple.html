@@ -1,0 +1,39 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="module">
+    import { encode, view } from '../src/encode.js';
+    import { decode } from '../src/decode.js';
+
+    const data = {
+      d: [],
+      e: { f: 456 },
+    };
+
+    data.d.push(data);
+    // data.data = data;
+
+    debugger;
+    const encoded = encode(data, {
+      // custom(value) {
+      //   if (typeof value === 'object' && '$bigint' in value && typeof value.$bigint === 'bigint')
+      //     return { ...value, $bigint: ASCII.encode(value.$bigint.toString()) };
+      //   return value;
+      // }
+    });
+
+    console.log(decode(encoded, {
+      // custom(value) {
+      //   const decoded = decode(value);
+      //   if (typeof decoded === 'object' && '$bigint' in decoded)
+      //     decoded.$bigint = BigInt(ASCII.decode(decoded.$bigint));
+      //   return decoded;
+      // }
+    }));
+
+  </script>
+</head>
+</html>
