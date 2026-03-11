@@ -28,7 +28,7 @@ const data = {
     -2147483648, 0, 2147483647,
     // uint32
     0, 4294967295,
-    // int64 (accordingly to JS number type)
+    // int64 (according to JS number type)
     -9007199254740992, 0, 9007199254740991,
     // bigint
     -9223372036854775808n, 0n, 9223372036854775807n,
@@ -73,7 +73,7 @@ All JSON-compatible types are supported, plus more:
 | RECURSION | `01110000` | 🔁 |
 | CUSTOM | `11111110` | value returned as `view(...)` or directly |
 
-The `custom` optional callback can return either any value or a `view(number[] | Uint8Array)` value that will be directly converted as such.
+The optional `custom` callback can return any value or a `view(number[] | Uint8Array)` value, which is then converted as such.
 
 When the `view(...)` utility is **not** used, the returned value is encoded via `encode(value)` so that it fits into the current `output`.
 
@@ -95,7 +95,7 @@ Use `view(value)` to return an array of `uint8` values or a `Uint8Array` view of
 
 ### Numbers
 
-The `NUMBER` type contains within itself the number *type* and bytes needed to represent the next entries.
+The `NUMBER` type embeds the number *type* and the bytes needed to represent the next entries.
 
 | type | bits | value |
 | :--- | :---: | :--: |
@@ -111,7 +111,7 @@ The `NUMBER` type contains within itself the number *type* and bytes needed to r
 
 #### Variants
 
-All variants are meant to signal the "*next move*" for the *decoder* so that it's clear what's needed to be parsed.
+All variants are meant to signal the "*next move*" for the *decoder* so that it's clear what needs to be parsed.
 
 This is achieved by combining `OBJECT`, `ARRAY`, or `STRING` with the number of bytes needed to retrieve a *length* (for key/value pairs, or for the array or string).
 
@@ -121,7 +121,7 @@ The `NUMBER` type embeds the byte length in its type as well, so the format stay
 
 So a number that fits in a single byte uses 2 bytes total; 16-bit values use 3 bytes, 32-bit values use 5 bytes, and floating-point or 64-bit (including *bigint*) values use 9 bytes.
 
-If you need to improve performance or space around specific views that are not `Uint8Array` kind, you can use the `custom(value)` entry point to do so, example:
+If you need to improve performance or size for specific views that are not `Uint8Array`, you can use the `custom(value)` hook; for example:
 
 ```js
 import { encode, decode } from 'https://esm.run/flatted-view';
@@ -163,26 +163,57 @@ const decoded = decode(encoded, {
 
 This example shows a practical way to hook into the `custom(value)` logic and preserve complex values or references from the encoded state.
 
-## Encoding in details
+## About Encoding
 
 ```js
+// all direct or empty types require a single byte
+
+[FALSE]       // false
+[TRUE]        // true
+[NULL]        // null
+[NUMBER]      // 0
+[OBJECT]      // {}
+[ARRAY]       // []
+[STRING]      // ''
+[VIEW]        // new Uint8Array(0)
+[RECURSION]   // at position 0
+
+// custom takes a prefix byte to signal
+// the next value is a custom one
+
+[CUSTOM]      // for views returned directly
+[CUSTOM | 1]  // for automatically encoded/decoded values
+
+// numbers different from 0 use 2 to 9 bytes
 NUMERIC_ONLY = NUMBER | RECURSION
-// always 1 byte + bytes needed to represent it unless value is 0
-[NUMERIC_ONLY] // if value is 0
+
 [NUMERIC_ONLY | u/int8, byte]
 [NUMERIC_ONLY | u/int16, ...[byte, byte]]
 [NUMERIC_ONLY | u/int32, ...[byte, byte, byte, byte]]
-[NUMERIC_ONLY | u/int64 | float | bigint, ...[byte, byte, byte, byte, byte, byte, byte, byte]]
+[NUMERIC_ONLY | u/int64 | bigu/int | float, ...[byte, byte, byte, byte, byte, byte, byte, byte]]
 
 // STRING are the same as NUMERIC_ONLY for the length + UTF8 bytes
-[STRING] // if string is empty
 [STRING | size, ...size_bytes, ...utf8_chars]
 
 // ARRAY are the same as NUMERIC_ONLY for the length + bytes per entry
-[ARRAY] // if length is 0
 [ARRAY | size, ...size_bytes, ...array_entries]
 
 // // ARRAY are the same as NUMERIC_ONLY for the key/value pairs + bytes per entry
-[OBJECT] // if no keys
-[OBJECT | kv_size, ...kv_size_butes, ...kv_pairs]
+[OBJECT | kv_size, ...kv_size_bytes, ...kv_pairs]
 ```
+
+### About Technical Choices
+
+  * **why are strings recursive?**
+    * because homogeneous collections are pretty common for anything *RESTful* so you get the automatic packing of same keys per row out of the box (background: [JSONH](https://github.com/WebReflection/JSONH#readme))
+    * because that works well in [flatted](https://github.com/WebReflection/flatted#readme) so I just brought in what 300M+ downloads per month believe is a good way to "*pack*" generic data
+    * because [TextEncoder](https://github.com/whatwg/encoding/issues/343) is slow so once any cache is needed/used to avoid encoding same string twice, there's an opportunity to make it just recursive, as that takes *O(1)* to retrieve
+  * **why are numbers so different?**
+    * in *JSON* there is just `number` and nothing else, that includes floating-point numbers and signed or unsigned integers and that worked well for a long time except they had to patch *JSON* to also support the `bigint` primitive. In *flatted*, *bigints* are not supported, but because here we target *binary* data it made little sense not to support `bigint` as well, where negative *bigints* are stored as such and any positive *bigint* is stored as [setBigUint64](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView/setBigUint64)
+    * in *JS* numbers are numbers, here it's just convenient to have the ability to use a single byte for both types with a length attached or numbers so that `-128` to `255` take only a single byte to store, besides the kind of the entry being resolved: compactness
+  * **why only one view type is supported?**
+    * because [Uint8Array is special](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array#description) and it can carry or represent any other view
+    * because anything that produces a *view* is usually producing a *Uint8Array*
+    * because with *custom* types one can reproduce anything else if, or when, needed
+  * **what about symbols?**
+    * these require very special and ad-hoc handling, if your data contains or needs to pass along *symbols*, you better use the `custom(value)` escape hook to transform these into something meaningful that can be then revived
