@@ -1,7 +1,7 @@
 // @ts-check
 
 import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } from './constants.js';
-import { I8, I16, I32, I64, U8, U16, U32, LEN, BI, BUI } from './constants.js';
+import { I8, I16, I32, F64, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 
 import { isArray, item, options, dv, v8 } from './utils.js';
 
@@ -30,6 +30,10 @@ class View {
 
 const encoder = new TextEncoder;
 
+const gr8 = (output, type) => {
+  output.push(type, ...v8);
+};
+
 const augment = (output, value) => {
   let type = CUSTOM;
   if (value instanceof View) {
@@ -41,42 +45,45 @@ const augment = (output, value) => {
     value = new Uint8Array(encode(value));
   }
   const length = value.length;
-  output.push(type, ...uint(NUMBER, length));
+  output.push(type);
+  uint(output, NUMBER, length);
   push(output, value, length);
 };
 
 const bigint = (output, value) => {
   if (value < 0n) {
     dv.setBigInt64(0, value, true);
-    output.push(NUMBER | BI, ...v8);
+    gr8(output, NUMBER | BI);
   }
   else {
     dv.setBigUint64(0, value, true);
-    output.push(NUMBER | BUI, ...v8);
+    gr8(output, NUMBER | BUI);
   }
 };
 
 const floating = (output, value) => {
   dv.setFloat64(0, value, true);
-  output.push(NUMBER | I64, ...v8);
+  gr8(output, NUMBER | F64);
 };
 
 const number = (output, value) => {
   if (isInteger(value)) {
-    if (value < MAX_I8 && -MAX_I8 <= value) {
-      dv.setInt8(0, value);
-      output.push(NUMBER | I8, v8[0]);
+    if (value < 0) {
+      if (-MAX_I8 <= value) {
+        dv.setInt8(0, value);
+        output.push(NUMBER | I8, v8[0]);
+      }
+      else if (-MAX_I16 <= value) {
+        dv.setInt16(0, value, true);
+        output.push(NUMBER | I16, v8[0], v8[1]);
+      }
+      else if (-MAX_I32 <= value) {
+        dv.setInt32(0, value, true);
+        output.push(NUMBER | I32, v8[0], v8[1], v8[2], v8[3]);
+      }
+      else floating(output, value);
     }
-    else if (value < MAX_I16 && -MAX_I16 <= value) {
-      dv.setInt16(0, value, true);
-      output.push(NUMBER | I16, v8[0], v8[1]);
-    }
-    else if (value < MAX_I32 && -MAX_I32 <= value) {
-      dv.setInt32(0, value, true);
-      output.push(NUMBER | I32, v8[0], v8[1], v8[2], v8[3]);
-    }
-    else if (value < 0) floating(output, value);
-    else output.push(...uint(NUMBER, value));
+    else uint(output, NUMBER, value);
   }
   else floating(output, value);
 };
@@ -88,31 +95,33 @@ const push = (output, bytes, length) => {
 
 const string = (output, cache, data) => {
   if (cache.has(data))
-    output.push(...uint(RECURSION, cache.get(data)));
+    uint(output, RECURSION, cache.get(data));
   else {
     const bytes = encoder.encode(data);
     const length = bytes.length;
     cache.set(data, output.length);
-    output.push(...uint(STRING, length));
+    uint(output, STRING, length);
     push(output, bytes, length);
   }
 };
 
-const uint = (type, length) => {
+const uint = (output, type, length) => {
   if (length < MAX_U8)
-    return [type | U8, length];
-  if (length < MAX_U16) {
+    output.push(type | U8, length);
+  else if (length < MAX_U16) {
     dv.setUint16(0, length, true);
-    return [type | U16, v8[0], v8[1]];
+    output.push(type | U16, v8[0], v8[1]);
   }
-  if (length < MAX_U32) {
+  else if (length < MAX_U32) {
     dv.setUint32(0, length, true);
-    return [type | U32, v8[0], v8[1], v8[2], v8[3]];
+    output.push(type | U32, v8[0], v8[1], v8[2], v8[3]);
   }
-  /* c8 ignore next */
-  dv.setFloat64(0, length, true);
-  /* c8 ignore next */
-  return [type | LEN, ...v8];
+  else {
+    /* c8 ignore next */
+    dv.setFloat64(0, length, true);
+    /* c8 ignore next */
+    gr8(output, type | LEN);
+  }
 };
 
 /**
@@ -152,7 +161,7 @@ export const encode = (data, { output = [], custom = options.custom } = options)
         break;
       case 'object':
         if (v) {
-          if (cache.has(v)) output.push(...uint(RECURSION, cache.get(v)));
+          if (cache.has(v)) uint(output, RECURSION, cache.get(v));
           else {
             cache.set(v, output.length);
             if ('toJSON' in v && typeof v.toJSON === 'function') {
@@ -165,19 +174,19 @@ export const encode = (data, { output = [], custom = options.custom } = options)
               if (value !== v) augment(output, value);
               else if (v instanceof Uint8Array) {
                 let length = v.length;
-                output.push(...uint(ARRAY | NUMBER, length));
+                uint(output, ARRAY | NUMBER, length);
                 push(output, v, length);
               }
               else if (isArray(v)) {
                 let length = v.length;
-                output.push(...uint(ARRAY, length));
+                uint(output, ARRAY, length);
                 while (length--)
                   stack.push(item(null, v[length]));
               }
               else {
                 const own = keys(v).filter(compatible, v);
                 let length = own.length;
-                output.push(...uint(OBJECT, length));
+                uint(output, OBJECT, length);
                 while (length--) {
                   const key = own[length];
                   stack.push(item(key, v[key]));

@@ -264,3 +264,18 @@ decoded = decode(encoded, {
 assert(true, decoded instanceof Float32Array);
 assert('1.23', decoded[0].toFixed(2));
 
+
+encoded = encode([-(2 ** 4), -(2 ** 8), -(2 ** 16), -(2 ** 32)]);
+decoded = decode(encoded);
+
+assert([-(2 ** 4), -(2 ** 8), -(2 ** 16), -(2 ** 32)].join(','), decoded.join(','));
+
+encoded = encode([2 ** 4, 2 ** 8, 2 ** 16, 2 ** 32]);
+decoded = decode(encoded);
+
+assert([2 ** 4, 2 ** 8, 2 ** 16, 2 ** 32].join(','), decoded.join(','));
+
+encoded = encode([2 ** 4, 2 ** 8, 2 ** 16, 2 ** 32]);
+decoded = decode(encoded);
+
+assert([2 ** 4, 2 ** 8, 2 ** 16, 2 ** 32].join(','), decoded.join(','));

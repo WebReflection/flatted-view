@@ -44,16 +44,16 @@ const decoded = decode(data);
 
 ## Features
 
-| feature | status |
+| feature | description |
 | :--- | :--: |
-| fast | ✅ |
-| recursion (stack based) | ✅ |
-| bigint | ✅ |
-| custom types | ✅ |
-| compact outcome | ✅ |
-| binary format | ✅ |
-| `toJSON` | ✅ |
-| cross PL | *WIP* |
+| fast | smart cache and battle tested logic |
+| recursion (stack based) | 5K nested arrays or literals? not a problem! |
+| bigint | compatible out of the box |
+| custom types | add any type you like, no fuss attached |
+| compact outcome | types and lengths are embedded and optimized |
+| binary format | works for *SharedArrayBuffer* too |
+| `toJSON` | compatible with legacy `toJSON` behavior |
+| cross PL | *WIP* - will work on *Python* and others soon |
 
 
 ## Supported Types
@@ -62,16 +62,16 @@ All *JSON* compatible types are in plus more:
 
 | type | bits | value |
 | :--- | :--: | :---: |
-| FALSE | 00000000 | `false` |
-| TRUE  | 00000001 | `true` |
-| NULL  | 00000010 | `null` |
-| OBJECT | 00010000 | `{...}` |
-| ARRAY | 00100000 | `[...]` |
-| STRING | 01000000 | `"..."` |
-| NUMBER | 10000000 | *int* or *float* |
-| VIEW | 10100000 | `new Uint8Array([...])` |
-| RECURSION | 01110000 | 🔁 |
-| CUSTOM | 11111110 | value returned as `view(...)` or directly |
+| FALSE | `00000000` | `false` |
+| TRUE  | `00000001` | `true` |
+| NULL  | `00000010` | `null` |
+| OBJECT | `00010000` | `{...}` |
+| ARRAY | `00100000` | `[...]` |
+| STRING | `01000000` | `"..."` |
+| NUMBER | `10000000` | *int* or *float* |
+| VIEW | `10100000` | `new Uint8Array([...])` |
+| RECURSION | `01110000` | 🔁 |
+| CUSTOM | `11111110` | value returned as `view(...)` or directly |
 
 The `custom` optional callback can return either any value or a `view(number[] | Uint8Array)` value that will be directly converted as such.
 
@@ -99,15 +99,15 @@ The `NUMBER` type contains within itself the number *type* and bytes needed to r
 
 | type | bits | value |
 | :--- | :---: | :--: |
-| int8  | 10000001 | -128 to 127 |
-| int16 | 10000010 | -32768 to 32767 |
-| int32 | 10000100 | -2147483648 to 2147483647 |
-| int64 | 10001000 | up to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) |
-| uint8  | 10000011 | 0 to 255 |
-| uint16 | 10000110 | 0 to 65535 |
-| uint32 | 10000111 | 0 to 4294967295 |
-| uint64 | 10001100 | 0 to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) |
-| float64 | 10001000 | every floaing point |
+| int8  | `10000001` | -128 to 127 |
+| int16 | `10000010` | -32768 to 32767 |
+| int32 | `10000100` | -2147483648 to 2147483647 |
+| int64 | `10001000` | up to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) |
+| uint8  | `10000011` | 0 to 255 |
+| uint16 | `10000110` | 0 to 65535 |
+| uint32 | `10000111` | 0 to 4294967295 |
+| uint64 | `10001100` | 0 to [2^53 – 1](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) |
+| float64 | `10001000` | every floaing point |
 
 #### Variants
 
