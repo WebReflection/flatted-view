@@ -2,6 +2,8 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/WebReflection/flatted-view/badge.svg?branch=main)](https://coveralls.io/github/WebReflection/flatted-view?branch=main) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/license/MIT)
 
+<sup>**Social Media Photo by [Sebastian Schuster](https://unsplash.com/@sschusterphotoart) on [Unsplash](https://unsplash.com/)**</sup>
+
 It's like [flatted](https://github.com/WebReflection/flatted) but with *Uint8Array* and binary data in mind, with broader support for `bigint` and `Uint8Array` views plus *custom types* to satisfy any need.
 
 ```js
@@ -55,7 +57,7 @@ To test cross *PL* compatibility, see [MicroPython Live Demo](./test/micropython
 | compact outcome | types and lengths are embedded and optimized |
 | binary format | works for *SharedArrayBuffer* too |
 | `toJSON` | compatible with legacy `toJSON` behavior |
-| cross PL | *WIP* - will work on *Python* and others soon |
+| cross PL | *Python* variant [available](./python/) |
 
 
 ## Supported Types
