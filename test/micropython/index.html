@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Flatted View - MicroPython Demo</title>
+        <style>body{font-family:sans-serif;}</style>
+        <link rel="stylesheet" href="https://pyscript.net/releases/2026.3.1/core.css" />
+        <script type="module" src="https://pyscript.net/releases/2026.3.1/core.js"></script>
+    </head>
+    <body>
+        <h3>
+          Flatted View - MicroPython Demo
+        </h3>
+        <p>
+          This terminal contains <code>flatted_view</code> module imported as remote package.
+        </p>
+        <p>
+          You can use the <code>encode</code>, <code>decode</code>, and <code>view</code> functions to test the module.
+        </p>
+        <p>
+          There are also <em>JS</em> shortcuts, such as <code>js.log</code>, <code>js.encode</code>, <code>js.decode</code>, and <code>js.view</code>.
+        </p>
+        <p>
+          Please note that to pass Python reference to <code>js.encode</code> you need to use <code>to_js(ref)</code>, which is also already available.
+        </p>
+        <script type="module">
+            import { encode, decode, view } from '../../src/index.js';
+
+            globalThis.encode = encode;
+            globalThis.decode = decode;
+            globalThis.view = view;
+            globalThis.log = console.log;
+        </script>
+        <script type="mpy" config="config.toml" terminal>
+            from flatted_view import encode, decode, view
+            from pyscript.ffi import to_js
+            import js
+
+            import code, js
+            code.interact(local=globals())
+        </script>
+    </body>
+</html>

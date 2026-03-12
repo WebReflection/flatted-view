@@ -1,0 +1,7 @@
+# this is for remote package via GitHub pages because
+# GitHub pages do not publish __init__.py files by default
+
+from .encode import encode, view, View
+from .decode import decode
+
+__all__ = ["encode", "decode", "view", "View"]

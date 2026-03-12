@@ -42,6 +42,8 @@ const decoded = decode(encoded);
 // that's it 👍
 ```
 
+To test cross *PL* compatibility, see [MicroPython Live Demo](./test/micropython/), based on [PyScript](https://pyscript.net/) remote packages feature.
+
 ## Features
 
 | feature | description |
