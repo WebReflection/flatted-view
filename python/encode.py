@@ -32,9 +32,7 @@ from .constants import (
 )
 
 
-def _default_custom(value):
-    return value
-
+_custom = lambda value: value
 
 def item(k, v):
     return {"k": k, "v": v}
@@ -75,10 +73,6 @@ def _uint(output, type_byte, length):
     else:
         output.append(type_byte | LEN)
         output.extend(struct.pack("<d", float(length)))
-
-
-def _push_bytes(output, data, length):
-    output.extend(data[:length])
 
 
 def _bigint(output, value):
@@ -127,18 +121,18 @@ def _string(output, cache, data):
     encoded = data.encode("utf-8")
     length = len(encoded)
     _uint(output, STRING, length)
-    _push_bytes(output, encoded, length)
+    output.extend(encoded[:length])
 
 
-def _augment(output, value, encode_fn):
+def _augment(output, value):
     if isinstance(value, View):
         raw = value.value()
         output.append(CUSTOM)
         _uint(output, NUMBER, len(raw))
-        _push_bytes(output, raw, len(raw))
+        output.extend(raw[:len(raw)])
     else:
         output.append(CUSTOM | I8)
-        nested = encode_fn(value)
+        nested = encode(value)
         _uint(output, NUMBER, len(nested))
         output.extend(nested)
 
@@ -146,16 +140,14 @@ def _augment(output, value, encode_fn):
 def _compatible(key, obj):
     v = obj.get(key, None)
     if v is None:
-        return False
+        return True
     t = type(v)
     return t in (bool, int, float, str, list, tuple, dict, bytes, bytearray)
 
 
-def encode(data, output=None, custom=None):
+def encode(data, output=None, custom=_custom):
     if output is None:
         output = []
-    if custom is None:
-        custom = _default_custom
 
     cache = {}
     stack = [item(None, data)]
@@ -204,13 +196,13 @@ def encode(data, output=None, custom=None):
 
             custom_result = custom(v)
             if custom_result is not v:
-                _augment(output, custom_result, lambda x: encode(x, [], custom))
+                _augment(output, custom_result)
                 continue
 
             if isinstance(v, (bytes, bytearray)):
                 length = len(v)
                 _uint(output, ARRAY | NUMBER, length)
-                _push_bytes(output, v, length)
+                output.extend(v[:length])
                 continue
 
             if isinstance(v, (list, tuple)):
@@ -232,7 +224,7 @@ def encode(data, output=None, custom=None):
         # Custom handler (before __dict__ so e.g. Symbol-like can return a value)
         custom_result = custom(v)
         if custom_result is not v:
-            _augment(output, custom_result, lambda x: encode(x, [], custom))
+            _augment(output, custom_result)
             continue
 
         # Class instance: encode __dict__ as object (like JS enumerable keys)

@@ -217,41 +217,44 @@ export const encode = (data, { output = [], custom = options.custom } = options)
             uint(output, RECURSION, cache.get(v));
             continue;
           }
-          else {
-            cache.set(v, output.length);
-            if ('toJSON' in v && typeof v.toJSON === 'function') {
-              const value = v.toJSON();
-              if (value === v) output.push(NULL);
-              else stack.push(item(null, value));
-              continue;
-            }
-            const value = custom(v);
-            if (value !== v) {
-              augment(output, value);
-              continue;
-            }
-            if (v instanceof Uint8Array) {
-              let length = v.length;
-              uint(output, ARRAY | NUMBER, length);
-              push(output, v, length);
-              continue;
-            }
-            if (isArray(v)) {
-              let length = v.length;
-              uint(output, ARRAY, length);
-              while (length--)
-                stack.push(item(null, v[length]));
-              continue;
-            }
-            const own = keys(v).filter(compatible, v);
-            let length = own.length;
-            uint(output, OBJECT, length);
-            while (length--) {
-              const key = own[length];
-              stack.push(item(key, v[key]));
-            }
+
+          cache.set(v, output.length);
+          if ('toJSON' in v && typeof v.toJSON === 'function') {
+            const value = v.toJSON();
+            if (value === v) output.push(NULL);
+            else stack.push(item(null, value));
             continue;
           }
+
+          const value = custom(v);
+          if (value !== v) {
+            augment(output, value);
+            continue;
+          }
+
+          if (v instanceof Uint8Array) {
+            let length = v.length;
+            uint(output, ARRAY | NUMBER, length);
+            push(output, v, length);
+            continue;
+          }
+
+          if (isArray(v)) {
+            let length = v.length;
+            uint(output, ARRAY, length);
+            while (length--)
+              stack.push(item(null, v[length]));
+            continue;
+          }
+
+          const own = keys(v).filter(compatible, v);
+          let length = own.length;
+          uint(output, OBJECT, length);
+          while (length--) {
+            const key = own[length];
+            stack.push(item(key, v[key]));
+          }
+          continue;
         }
       case 'undefined':
         output.push(NULL);
