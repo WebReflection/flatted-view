@@ -27,7 +27,10 @@
   "description": "Flatted like approach brought to Uint8Array compatible values",
   "files": [
     "src",
-    "python",
+    "python/__init__.py",
+    "python/constants.py",
+    "python/decode.py",
+    "python/encode.py",
     "types",
     "README.md",
     "LICENSE"
