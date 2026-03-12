@@ -201,61 +201,66 @@ export const encode = (data, { output = [], custom = options.custom } = options)
     switch (typeof v) {
       case 'bigint':
         bigint(output, v);
-        break;
+        continue;
       case 'boolean':
         output.push(v ? TRUE : FALSE);
-        break;
+        continue;
       case 'number':
         number(output, v);
-        break;
+        continue;
       case 'string':
         string(output, cache, v);
-        break;
+        continue;
       case 'object':
         if (v) {
-          if (cache.has(v)) uint(output, RECURSION, cache.get(v));
+          if (cache.has(v)) {
+            uint(output, RECURSION, cache.get(v));
+            continue;
+          }
           else {
             cache.set(v, output.length);
             if ('toJSON' in v && typeof v.toJSON === 'function') {
               const value = v.toJSON();
               if (value === v) output.push(NULL);
               else stack.push(item(null, value));
+              continue;
             }
-            else {
-              const value = custom(v);
-              if (value !== v) augment(output, value);
-              else if (v instanceof Uint8Array) {
-                let length = v.length;
-                uint(output, ARRAY | NUMBER, length);
-                push(output, v, length);
-              }
-              else if (isArray(v)) {
-                let length = v.length;
-                uint(output, ARRAY, length);
-                while (length--)
-                  stack.push(item(null, v[length]));
-              }
-              else {
-                const own = keys(v).filter(compatible, v);
-                let length = own.length;
-                uint(output, OBJECT, length);
-                while (length--) {
-                  const key = own[length];
-                  stack.push(item(key, v[key]));
-                }
-              }
+            const value = custom(v);
+            if (value !== v) {
+              augment(output, value);
+              continue;
             }
+            if (v instanceof Uint8Array) {
+              let length = v.length;
+              uint(output, ARRAY | NUMBER, length);
+              push(output, v, length);
+              continue;
+            }
+            if (isArray(v)) {
+              let length = v.length;
+              uint(output, ARRAY, length);
+              while (length--)
+                stack.push(item(null, v[length]));
+              continue;
+            }
+            const own = keys(v).filter(compatible, v);
+            let length = own.length;
+            uint(output, OBJECT, length);
+            while (length--) {
+              const key = own[length];
+              stack.push(item(key, v[key]));
+            }
+            continue;
           }
-          break;
         }
       case 'undefined':
         output.push(NULL);
-        break;
+        continue;
       default: {
         const value = custom(v);
         if (value !== v) augment(output, value);
         else output.push(NULL);
-        break;
+        continue;
       }
     }
   }
