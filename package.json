@@ -34,7 +34,7 @@
   ],
   "scripts": {
     "coverage": "mkdir -p ./coverage; c8 report --reporter=text-lcov > ./coverage/lcov.info",
-    "test": "c8 node test/index.js",
+    "test": "python python/test_index.py && c8 node test/index.js",
     "ts": "rm -rf types && tsc -p ."
   },
   "repository": {

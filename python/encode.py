@@ -114,9 +114,11 @@ def _string(output, cache, data):
     if data == "":
         output.append(STRING)
         return
+
     if id(data) in cache:
         _uint(output, RECURSION, cache[id(data)])
         return
+
     cache[id(data)] = len(output)
     encoded = data.encode("utf-8")
     length = len(encoded)
