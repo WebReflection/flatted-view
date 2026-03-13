@@ -5,6 +5,18 @@ import { I8, I16, I32, F64, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 
 import { isArray, item, options, dv, v8 } from './utils.js';
 
+/**
+ * @callback custom
+ * @param {unknown} value
+ * @returns {unknown | View}
+ */
+
+/** @typedef {import('./shared.js').default} Shared */
+
+/** @typedef {number[] | Shared} Output */
+
+/** @typedef {{ output?: Output, custom?: custom, set?: boolean }} Options */
+
 const MAX_U8  = 2 ** 8;
 const MAX_U16 = 2 ** 16;
 const MAX_U32 = 2 ** 32;
@@ -50,8 +62,9 @@ const gr8 = (output, type) => {
 /**
  * @param {Output} output
  * @param {unknown} value
+ * @param {boolean} set
  */
-const augment = (output, value) => {
+const augment = (output, value, set) => {
   let type = CUSTOM;
   if (value instanceof View) {
     value = valueOf(value);
@@ -64,7 +77,7 @@ const augment = (output, value) => {
   output.push(type);
   const length = /** @type {Uint8Array} */ (value).length;
   uint(output, NUMBER, length);
-  push(output, /** @type {Uint8Array} */ (value), length);
+  push(output, /** @type {Uint8Array} */ (value), length, set);
 };
 
 /**
@@ -121,18 +134,25 @@ const number = (output, value) => {
  * @param {Output} output
  * @param {Uint8Array} bytes
  * @param {number} length
+ * @param {boolean} set
  */
-const push = (output, bytes, length) => {
-  for (let i = 0; i < length; i += I16)
-    output.push.apply(output, bytes.subarray(i, i + I16));
+const push = (output, bytes, length, set) => {
+  if (set) {
+    (/** @type {Shared} */ (output)).set(bytes, output.length);
+  }
+  else {
+    for (let i = 0; i < length; i += I16)
+      output.push.apply(output, bytes.subarray(i, i + I16));
+  }
 };
 
 /**
  * @param {Output} output
  * @param {Map<unknown, number>} cache
  * @param {string} data
+ * @param {boolean} set
  */
-const string = (output, cache, data) => {
+const string = (output, cache, data, set) => {
   if (data === '')
     output.push(STRING);
   else if (cache.has(data))
@@ -142,7 +162,7 @@ const string = (output, cache, data) => {
     const length = bytes.length;
     cache.set(data, output.length);
     uint(output, STRING, length);
-    push(output, bytes, length);
+    push(output, bytes, length, set);
   }
 };
 
@@ -173,31 +193,17 @@ const uint = (output, type, length) => {
 };
 
 /**
- * @callback custom
- * @param {unknown} value
- * @returns {unknown | View}
- */
-
-/**
- * @typedef {number[] | import('./shared.js').default} Output
- */
-
-/**
- * @typedef {{ output?: Output, custom?: custom }} Options
- */
-
-/**
  * Encodes data as uint8 values
  * @param {unknown} data
  * @param {Options} options
  * @returns
  */
-export const encode = (data, { output = [], custom = options.custom } = options) => {
+export const encode = (data, { output = [], custom = options.custom, set = false } = options) => {
   const cache = new Map;
   const stack = [item(null, data)];
   while (stack.length) {
     const { k, v } = stack.pop();
-    if (k !== null) string(output, cache, k);
+    if (k !== null) string(output, cache, k, set);
     switch (typeof v) {
       case 'bigint':
         bigint(output, v);
@@ -209,7 +215,7 @@ export const encode = (data, { output = [], custom = options.custom } = options)
         number(output, v);
         continue;
       case 'string':
-        string(output, cache, v);
+        string(output, cache, v, set);
         continue;
       case 'object':
         if (v) {
@@ -228,14 +234,14 @@ export const encode = (data, { output = [], custom = options.custom } = options)
 
           const value = custom(v);
           if (value !== v) {
-            augment(output, value);
+            augment(output, value, set);
             continue;
           }
 
           if (v instanceof Uint8Array) {
             let length = v.length;
             uint(output, ARRAY | NUMBER, length);
-            push(output, v, length);
+            push(output, v, length, set);
             continue;
           }
 
@@ -261,7 +267,7 @@ export const encode = (data, { output = [], custom = options.custom } = options)
         continue;
       default: {
         const value = custom(v);
-        if (value !== v) augment(output, value);
+        if (value !== v) augment(output, value, set);
         else output.push(NULL);
         continue;
       }

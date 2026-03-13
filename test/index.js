@@ -292,6 +292,11 @@ decoded = decode(encoded);
 
 assert([1, 2, 3, 4].join(','), decoded.join(','));
 
+encoded = encode([1, '...', 2], { output: shared.sized(0), set: true });
+decoded = decode(encoded);
+
+assert([1, '...', 2].join(','), decoded.join(','));
+
 assert(1, encode('').length);
 assert('', decode(encode('')));
 

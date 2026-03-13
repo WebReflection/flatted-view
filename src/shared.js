@@ -11,6 +11,25 @@ export default class Shared extends Uint8Array {
   static [Symbol.species] = Uint8Array;
 
   /**
+   * @param {number[] | Uint8Array} values
+   * @param {number} targetOffset
+   */
+  #set(values, targetOffset) {
+    const slength = values.length;
+    const tlength = super.length;
+
+    if ((targetOffset + slength) > tlength && this.buffer.growable) {
+      let next = tlength + targetOffset + slength + this.byteOffset;
+      next += PAGE - (next % PAGE);
+      this.buffer.grow(min(next, this.buffer.maxByteLength));
+    }
+
+    // let it throw if the buffer is not growable
+    super.set(values, targetOffset);
+    this._ += slength;
+  }
+
+  /**
    * @param {SharedArrayBuffer} sab
    * @param {number} byteOffset
    */
@@ -22,23 +41,20 @@ export default class Shared extends Uint8Array {
   }
 
   /**
-   * @param  {...number} args 
+   * @param  {...number} args
+   * @returns
    */
   push(...args) {
-    const length = args.length;
-    const l = super.length;
-    const i = this._;
-
-    if ((i + length) > l && this.buffer.growable) {
-      let next = l + i + length + this.byteOffset;
-      next += PAGE - (next % PAGE);
-      this.buffer.grow(min(next, this.buffer.maxByteLength));
-    }
-
-    // let it throw if the buffer is not growable
-    this.set(args, i);
-    this._ += length;
+    this.#set(args, this._);
     return this._;
+  }
+
+  /**
+   * @param {number[] | Uint8Array} values
+   * @param {number} targetOffset
+   */
+  set(values, targetOffset = 0) {
+    this.#set(values, targetOffset);
   }
 
   /**
