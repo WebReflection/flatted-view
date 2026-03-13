@@ -11,7 +11,6 @@
     globalThis.encode = encode;
     globalThis.decode = decode;
 
-    debugger;
     console.log(decode(encode(new Uint8Array(0))));
     console.log(decode(encode([1, new Uint8Array(0), 2])));
 

@@ -14,5 +14,9 @@ export default class Shared extends Uint8Array<SharedArrayBuffer> {
      * @param  {...number} args
      */
     push(...args: number[]): number;
-    reset(): this;
+    /**
+     * @param {number} length
+     * @returns {this}
+     */
+    sized(length: number): this;
 }

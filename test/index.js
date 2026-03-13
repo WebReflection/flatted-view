@@ -287,7 +287,7 @@ decoded = decode(encoded);
 
 assert([1, 2, 3, 4, 5, 6, 7, 8].join(','), decoded.join(','));
 
-encoded = encode([1, 2, 3, 4], { output: shared.reset() });
+encoded = encode([1, 2, 3, 4], { output: shared.sized(0) });
 decoded = decode(encoded);
 
 assert([1, 2, 3, 4].join(','), decoded.join(','));

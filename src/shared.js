@@ -41,8 +41,12 @@ export default class Shared extends Uint8Array {
     return this._;
   }
 
-  reset() {
-    this._ = 0;
+  /**
+   * @param {number} length
+   * @returns {this}
+   */
+  sized(length) {
+    this._ = length;
     return this;
   }
 
