@@ -287,12 +287,14 @@ decoded = decode(encoded);
 
 assert([1, 2, 3, 4, 5, 6, 7, 8].join(','), decoded.join(','));
 
-encoded = encode([1, 2, 3, 4], { output: shared.sized(0) });
+shared.length = 0;
+encoded = encode([1, 2, 3, 4], { output: shared });
 decoded = decode(encoded);
 
 assert([1, 2, 3, 4].join(','), decoded.join(','));
 
-encoded = encode([1, '...', 2], { output: shared.sized(0), set: true });
+shared.length = 0;
+encoded = encode([1, '...', 2], { output: shared, set: true });
 decoded = decode(encoded);
 
 assert([1, '...', 2].join(','), decoded.join(','));

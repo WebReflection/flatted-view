@@ -238,18 +238,18 @@ export const encode = (data, { output = [], custom = options.custom, set = false
             continue;
           }
 
-          if (v instanceof Uint8Array) {
-            let length = v.length;
-            uint(output, ARRAY | NUMBER, length);
-            push(output, v, length, set);
-            continue;
-          }
-
           if (isArray(v)) {
             let length = v.length;
             uint(output, ARRAY, length);
             while (length--)
               stack.push(item(null, v[length]));
+            continue;
+          }
+
+          if (v instanceof Uint8Array) {
+            let length = v.length;
+            uint(output, ARRAY | NUMBER, length);
+            push(output, v, length, set);
             continue;
           }
 

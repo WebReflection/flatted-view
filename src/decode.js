@@ -15,7 +15,7 @@ const ignore = item(NULL, null);
 
 /** @typedef {number[] | Uint8Array | import('./shared.js').default} Input */
 
-/** @typedef {{ custom?: (value: unknown) => unknown }} Options */
+/** @typedef {{ custom?: (value: unknown, encoded: boolean) => unknown }} Options */
 
 /**
  * @param {Uint8Array} input
@@ -142,7 +142,8 @@ export const decode = (view, { custom = options.custom } = options) => {
     else if (CUSTOM <= type) {
       const length = number(input, input[index.i++], index);
       const view = slice(input, length, index);
-      entry = custom(type === CUSTOM_REVIVE ? decode(view) : view);
+      const revive = type === CUSTOM_REVIVE;
+      entry = custom(revive ? decode(view) : view, !revive);
     }
 
     else if (type & NUMBER) {

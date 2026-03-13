@@ -57,16 +57,11 @@ export default class Shared extends Uint8Array {
     this.#set(values, targetOffset);
   }
 
-  /**
-   * @param {number} length
-   * @returns {this}
-   */
-  sized(length) {
-    this._ = length;
-    return this;
-  }
-
   get length() {
     return this._;
+  }
+
+  set length(length) {
+    this._ = length;
   }
 }
