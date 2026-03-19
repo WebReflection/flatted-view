@@ -36,6 +36,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "build:py": "rm -rf ./pypi && rm -rf ./wheel && mkdir -p ./wheel/flatted_view && cp ./python/*.py ./wheel/flatted_view/ && rm ./wheel/flatted_view/test_*.py && cp ./setup.py ./wheel/ && cd wheel && python setup.py bdist_wheel && sleep 1 && cd .. && mv wheel/dist ./pypi && rm -rf wheel",
     "coverage": "mkdir -p ./coverage; c8 report --reporter=text-lcov > ./coverage/lcov.info",
     "test": "python3 python/test_index.py && c8 node test/index.js && npm run ts",
     "ts": "rm -rf types && tsc -p ."
