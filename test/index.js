@@ -310,3 +310,5 @@ assert(0, decode(encode([])).length);
 assert(1, encode({}).length);
 
 assert([0, 1, 0, 'a', 0, '', 0, 'b'].join(','), decode(encode([0, 1, 0, 'a', 0, '', 0, 'b'])).join(','));
+
+import('./extras.js');

@@ -10,8 +10,10 @@ const decode = (view, options) => {
         return new File([v[5]], v[1], { lastModified: v[2], type: v[4] });
       case BLOB:
         return new Blob([v[2]], { type: v[1] });
+      /* c8 ignore start */
       default:
         return value;
+      /* c8 ignore stop */
     }
   }});
 };

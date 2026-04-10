@@ -26,8 +26,7 @@ const encode = (data, { output = [], set = false } = _options) => {
         files.push(item(1 + output.length + length + _encode(length).length - size, value.arrayBuffer()));
         return view(encoded);
       }
-      default:
-        return value;
+      default: return value;
     }
   }});
   return files.length ?

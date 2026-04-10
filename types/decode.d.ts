@@ -5,5 +5,5 @@ export type Index = {
 };
 export type Input = number[] | Uint8Array | import("./shared.js").default;
 export type Options = {
-    custom?: (value: unknown) => unknown;
+    custom?: (value: unknown, encoded: boolean) => unknown;
 };

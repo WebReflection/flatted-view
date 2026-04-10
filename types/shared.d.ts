@@ -20,10 +20,7 @@ export default class Shared extends Uint8Array<SharedArrayBuffer> {
      * @param {number} targetOffset
      */
     set(values: number[] | Uint8Array, targetOffset?: number): void;
-    /**
-     * @param {number} length
-     * @returns {this}
-     */
-    sized(length: number): this;
+    set length(length: number);
+    get length(): number;
     #private;
 }
