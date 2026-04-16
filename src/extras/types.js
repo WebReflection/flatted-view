@@ -9,5 +9,4 @@ export const REGEXP = i++;
 export const DATE = i++;
 export const MAP = i++;
 export const SET = i++;
-export const SYMBOL = i++;
 export const IMAGE_DATA = i++;

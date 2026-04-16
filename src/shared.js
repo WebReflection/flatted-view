@@ -16,10 +16,11 @@ export default class Shared extends Uint8Array {
    */
   #set(values, targetOffset) {
     const slength = values.length;
-    const tlength = super.length;
 
-    if ((targetOffset + slength) > tlength && this.buffer.growable) {
-      let next = tlength + targetOffset + slength + this.byteOffset;
+    targetOffset += this.byteOffset;
+
+    if ((targetOffset + slength) > super.length && this.buffer.growable) {
+      let next = targetOffset + slength;
       next += PAGE - (next % PAGE);
       this.buffer.grow(min(next, this.buffer.maxByteLength));
     }

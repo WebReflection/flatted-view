@@ -4,6 +4,7 @@ import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } f
 import { I8, I16, I32, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 
 import { isArray, item, options, dv, v8 } from './utils.js';
+import { fromSymbol } from './symbols.js';
 
 const NUMBER_IGNORE = ~(RECURSION | NUMBER);
 const CUSTOM_REVIVE = CUSTOM | I8;
@@ -46,9 +47,10 @@ const floating = (input, index) => {
  */
 const key = (input, cache, index) => {
   const type = input[index.i++];
-  return (type & ~LEN) === RECURSION ?
-    /** @type {string} */ (cache.get(number(input, type, index))) :
-    string(input, cache, type, index);
+  if ((type & ~LEN) === RECURSION)
+    return /** @type {string | symbol} */ (cache.get(number(input, type, index)));
+  const k = string(input, cache, type, index);
+  return type & NUMBER ? fromSymbol(k) : k;
 };
 
 /**
@@ -121,7 +123,7 @@ export const decode = (view, { custom = options.custom } = options) => {
   const cache = new Map;
 
   /** @type {Index} */
-  const index = { i: 0 };
+  const index = { i: input.byteOffset };
 
   /** @type {{ k: number, v: unknown }[]} */
   const stack = input.length ? [ignore] : [];
@@ -150,6 +152,9 @@ export const decode = (view, { custom = options.custom } = options) => {
       if (type & ARRAY) {
         const length = number(input, type & ~ARRAY, index);
         entry = slice(input, length, index);
+      }
+      else if (type & STRING) {
+        entry = fromSymbol(string(input, cache, type, index));
       }
       else {
         const t = type & ~NUMBER;
