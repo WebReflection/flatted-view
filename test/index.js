@@ -1,12 +1,7 @@
 import { Shared, encode, decode, view } from '../src/index.js';
 import { ASCII } from './utils.js';
 
-const assert = (expected, actual) => {
-  if (expected !== actual) {
-    console.error('Expected', expected, 'but got', actual);
-    throw new Error('Assertion failed');
-  }
-};
+import assert from './assert.js';
 
 let v = new Uint8Array([1, 2, 3]);
 
@@ -18,6 +13,30 @@ const data = {
   e: { f: 456, g: 'world' },
   v
 };
+
+assert(encode({}).length, 1);
+assert(encode({a: undefined}).length, 2);
+assert(encode({a: undefined, fn(){}}).length, 2);
+assert(encode({a: undefined, fn(){}})[1], 0);
+assert(JSON.stringify(decode(encode({a: undefined, fn(){}}))), JSON.stringify({a: undefined, fn(){}}));
+assert(JSON.stringify(decode(encode({$: 1, a: undefined, fn(){}}))), JSON.stringify({$: 1, a: undefined, fn(){}}));
+assert(JSON.stringify(decode(encode({$: 1, a: undefined, fn(){}}, { output: new Shared(new SharedArrayBuffer(8, { maxByteLength: 2 ** 8 }), 4), set: true }))), JSON.stringify({$: 1, a: undefined, fn(){}}));
+
+let obj = {a: void 0};
+for (let i = 0; i < 2 ** 8; i++) obj[`a${i}`] = i;
+assert(Object.keys(decode(encode(obj))).length, 2 ** 8);
+
+for (let i = 2 ** 8; i < 2 ** 16; i++) obj[`a${i}`] = i;
+assert(Object.keys(decode(encode(obj))).length, 2 ** 16);
+
+assert(decode(encode(function () {})), void 0);
+assert(decode(encode(function () {}, { fn: true })), null);
+assert(decode(encode(function () {}, { fn: true, custom: fn => [typeof fn === 'function'] }), { custom: ([value]) => value }), true);
+
+assert(decode(encode({[Symbol.toStringTag]: 'ok'}))[Symbol.toStringTag], 'ok');
+
+const date = new Date;
+assert(decode(encode(date)), date.toJSON());
 
 let encoded = encode(data);
 let decoded = decode(encoded);
@@ -175,13 +194,31 @@ assert([1, 2, 3].join(','), decoded.join(','));
 encoded = encode(Symbol('nope'));
 decoded = decode(encoded);
 
-assert(null, decoded);
+assert(String(decoded), String(Symbol('nope')));
+
+encoded = encode(Symbol());
+decoded = decode(encoded);
+
+assert(String(decoded), String(Symbol()));
+
+
+encoded = encode(Symbol.for('nope'));
+decoded = decode(encoded);
+
+assert(decoded, Symbol.for('nope'));
+
+encoded = encode(Symbol.iterator);
+decoded = decode(encoded);
+
+assert(decoded, Symbol.iterator);
 
 encoded = encode([1, 2, 3], {
-  custom: value => view(value)
+  custom: value => view(new Uint8Array(encode(value)))
 });
 
-decoded = decode(encoded);
+decoded = decode(encoded, {
+  custom: value => decode(value)
+});
 
 assert([1, 2, 3].join(','), decoded.join(','));
 
@@ -223,46 +260,82 @@ decoded = decode(encoded);
 assert(Object.keys(decoded).length, 0);
 
 encoded = encode({}, {
-  custom: () => 1,
+  custom: () => [1],
 });
 decoded = decode(encoded, {
-  custom: value => value,
+  custom: ([value]) => value,
 });
 
 assert(1, decoded);
 
 encoded = encode({}, {
-  custom: () => 123,
+  custom: () => [123],
 });
-decoded = decode(encoded);
+decoded = decode(encoded, {
+  custom: ([value]) => value,
+});
 
 assert(123, decoded);
 
-encoded = encode(Symbol('nope'), {
-  custom: value => value.description,
-});
-decoded = decode(encoded);
+// encoded = encode(Symbol('nope'), {
+//   custom: value => value.description,
+// });
+// decoded = decode(encoded);
 
-assert('nope', decoded);
+// assert('nope', decoded);
 
 encoded = encode(new Float32Array([1.23]), {
   custom(value) {
     if (value instanceof Float32Array)
-      return { typed: 'Float32Array', view: new Uint8Array(value.buffer) }
+      return ['Float32Array', new Uint8Array(value.buffer)];
     return value;
   }
 });
 
 decoded = decode(encoded, {
-  custom(value) {
-    if (typeof value === 'object' && typeof value?.typed === 'string')
-      value = new globalThis[value.typed](value.view.buffer);
-    return value;
+  custom([name, view]) {
+    return new globalThis[name](view.buffer);
   }
 });
 
 assert(true, decoded instanceof Float32Array);
 assert('1.23', decoded[0].toFixed(2));
+
+encoded = encode({ f32: new Float32Array([1.23]) }, {
+  custom(value) {
+    if (value instanceof Float32Array)
+      return ['Float32Array', new Uint8Array(value.buffer)];
+    return value;
+  }
+});
+
+decoded = decode(encoded, {
+  custom([name, view]) {
+    return new globalThis[name](view.buffer);
+  }
+});
+
+assert(true, decoded.f32 instanceof Float32Array);
+assert('1.23', decoded.f32[0].toFixed(2));
+
+encoded = encode([1, new Float32Array([1.23]), 3], {
+  custom(value) {
+    if (value instanceof Float32Array)
+      return ['Float32Array', new Uint8Array(value.buffer)];
+    return value;
+  }
+});
+
+decoded = decode(encoded, {
+  custom([name, view]) {
+    return new globalThis[name](view.buffer);
+  }
+});
+
+assert(1, decoded[0]);
+assert(3, decoded[2]);
+assert(true, decoded[1] instanceof Float32Array);
+assert('1.23', decoded[1][0].toFixed(2));
 
 
 encoded = encode([-(2 ** 4), -(2 ** 8), -(2 ** 16), -(2 ** 32)]);
@@ -281,7 +354,9 @@ decoded = decode(encoded);
 assert([2 ** 4, 2 ** 8, 2 ** 16, 2 ** 32].join(','), decoded.join(','));
 
 const shared = new Shared(new SharedArrayBuffer(8, { maxByteLength: 2 ** 8 }), 4);
+console.log(decode(encode([1, 2], { output: shared })));
 
+shared.length = 0;
 encoded = encode([1, 2, 3, 4, 5, 6, 7, 8], { output: shared });
 decoded = decode(encoded);
 

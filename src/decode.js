@@ -4,9 +4,10 @@ import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } f
 import { I8, I16, I32, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 
 import { isArray, item, options, dv, v8 } from './utils.js';
+import { fromSymbol } from './symbols.js';
 
 const NUMBER_IGNORE = ~(RECURSION | NUMBER);
-const CUSTOM_REVIVE = CUSTOM | I8;
+const STACK_DECODED = CUSTOM | I8;
 
 const decoder = new TextDecoder;
 const ignore = item(NULL, null);
@@ -15,7 +16,16 @@ const ignore = item(NULL, null);
 
 /** @typedef {number[] | Uint8Array | import('./shared.js').default} Input */
 
-/** @typedef {{ custom?: (value: unknown, encoded: boolean) => unknown }} Options */
+/**
+ * Stack payload while finishing a CUSTOM value: chunk buffers and finalized values.
+ * @typedef {[unknown[], { k: number, v: unknown }]} CustomDecodeValue
+ */
+
+/**
+ * Decode `custom`: second arg is **`fromView`**. When `true`, `value` is the CUSTOM payload from a
+ * `view(...)` encode (opaque bytes / nested encoding) and usually needs revival; when `false`, the
+ * value was already resolved by the stack decoder and can often be returned as-is.
+ * @typedef {{ custom?: (value: unknown, fromView: boolean) => unknown }} Options */
 
 /**
  * @param {Uint8Array} input
@@ -40,15 +50,16 @@ const floating = (input, index) => {
 
 /**
  * @param {Uint8Array} input
- * @param {Map<number, unknown>} cache
+ * @param {Map<unknown, unknown>} cache
  * @param {Index} index
  * @returns
  */
 const key = (input, cache, index) => {
   const type = input[index.i++];
-  return (type & ~LEN) === RECURSION ?
-    /** @type {string} */ (cache.get(number(input, type, index))) :
-    string(input, cache, type, index);
+  if ((type & ~LEN) === RECURSION)
+    return /** @type {string | symbol} */ (cache.get(number(input, type, index)));
+  const k = string(input, cache, type, index);
+  return type & NUMBER ? fromSymbol(k) : k;
 };
 
 /**
@@ -64,7 +75,7 @@ const number = (input, type, index) => {
 
   v8[0] = input[index.i++];
 
-  if (type === U8) return dv.getUint8(0);
+  if (type === U8) return v8[0];
   if (type === I8) return dv.getInt8(0);
 
   v8[1] = input[index.i++];
@@ -93,7 +104,7 @@ const slice = (input, length, index) => {
 
 /**
  * @param {Uint8Array} input
- * @param {Map<number, unknown>} cache
+ * @param {Map<unknown, unknown>} cache
  * @param {number} type
  * @param {Index} index
  * @returns {string}
@@ -115,13 +126,28 @@ const string = (input, cache, type, index) => {
  * @returns {unknown?}
  */
 export const decode = (view, { custom = options.custom } = options) => {
+  /**
+   * @param {CUSTOM | STACK_DECODED} k
+   * @param {[unknown[] | Uint8Array, { k: number, v: unknown }]} v
+   * @param {number} known
+   * @returns
+   */
+  const finalize = (k, v, known) => {
+    const [value, { k: key, v: parent }] = v;
+    entry = custom(value, k !== STACK_DECODED);
+    cache.set(known, entry);
+    if (parent) parent[key] = entry;
+    else if (first) result = entry;
+    return entry;
+  };
+
   const input = isArray(view) ? new Uint8Array(view) : view;
 
-  /** @type {Map<number, unknown>} */
+  /** @type {Map<unknown, unknown>} */
   const cache = new Map;
 
   /** @type {Index} */
-  const index = { i: 0 };
+  const index = { i: input.byteOffset };
 
   /** @type {{ k: number, v: unknown }[]} */
   const stack = input.length ? [ignore] : [];
@@ -129,9 +155,15 @@ export const decode = (view, { custom = options.custom } = options) => {
   let first = true, result, entry, prop;
 
   while (stack.length) {
-    const { k, v } = stack.pop();
+    let { k, v } = stack.pop();
 
     if (k === OBJECT) prop = key(input, cache, index);
+    else if (CUSTOM <= k && isArray(v)) {
+      const custom = /** @type {CustomDecodeValue} */ (v);
+      const knownRef = /** @type {number} */ (cache.get(custom[0]));
+      custom[0].push(finalize(k, custom, knownRef));
+      continue;
+    }
 
     const type = input[index.i++];
 
@@ -140,16 +172,21 @@ export const decode = (view, { custom = options.custom } = options) => {
     else if (type === NULL) entry = null;
 
     else if (CUSTOM <= type) {
-      const length = number(input, input[index.i++], index);
-      const view = slice(input, length, index);
-      const revive = type === CUSTOM_REVIVE;
-      entry = custom(revive ? decode(view) : view, !revive);
+      const known = index.i - 1;
+      entry = [];
+      cache.set(known, entry);
+      cache.set(entry, known);
+      stack.push(item(type, item(k === OBJECT ? prop : (k === ARRAY ? /** @type {unknown[]} */(v).length : null), v)));
+      continue;
     }
 
     else if (type & NUMBER) {
       if (type & ARRAY) {
         const length = number(input, type & ~ARRAY, index);
         entry = slice(input, length, index);
+      }
+      else if (type & STRING) {
+        entry = fromSymbol(string(input, cache, type, index));
       }
       else {
         const t = type & ~NUMBER;
@@ -166,12 +203,29 @@ export const decode = (view, { custom = options.custom } = options) => {
       else if (kind === STRING) entry = string(input, cache, type, index);
 
       else {
+        const isCustom = CUSTOM <= k;
         const known = index.i - 1;
         const length = number(input, type, index);
 
         if (kind === ARRAY) {
-          entry = [];
-          cache.set(known, entry);
+          if (isCustom) {
+            entry = cache.get(known - 1);
+            // it's safe to directly resolve encoded views
+            if (k !== STACK_DECODED) {
+              const target = /** @type {unknown[]} */ (entry);
+              const pair = /** @type {CustomDecodeValue} */ ([
+                /** @type {number[] | Uint8Array} */(slice(input, length, index)),
+                /** @type {{ k: number, v: unknown }} */ (v),
+              ]);
+              target.push(finalize(k, pair, known - 1));
+              continue;
+            }
+            stack.push(item(k, [entry, v]));
+          }
+          else {
+            entry = [];
+            cache.set(known, entry);
+          }
           for (let next = item(ARRAY, entry), i = 0; i < length; i++)
             stack.push(next);
         }
@@ -190,10 +244,10 @@ export const decode = (view, { custom = options.custom } = options) => {
       result = entry;
     }
     else if (k === OBJECT) v[prop] = entry;
-    else if (k === ARRAY) (/** @type {Array<unknown>} */ (v)).push(entry);
+    else if (k === ARRAY) /** @type {unknown[]} */(v).push(entry);
   }
 
-  return result;
+  return isArray(result) && cache.has(result) ? /** @type {unknown[]} */(result).pop() : result;
 };
 
 export default decode;

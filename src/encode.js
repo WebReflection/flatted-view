@@ -4,6 +4,7 @@ import { FALSE, TRUE, NULL, NUMBER, STRING, ARRAY, OBJECT, RECURSION, CUSTOM } f
 import { I8, I16, I32, F64, U8, U16, U32, LEN, BI, BUI } from './constants.js';
 
 import { isArray, item, options, dv, v8 } from './utils.js';
+import { toSymbol } from './symbols.js';
 
 /**
  * @callback custom
@@ -15,7 +16,7 @@ import { isArray, item, options, dv, v8 } from './utils.js';
 
 /** @typedef {number[] | Shared} Output */
 
-/** @typedef {{ output?: Output, custom?: custom, set?: boolean }} Options */
+/** @typedef {{ custom?: custom, fn?: boolean, json?: boolean, output?: Output, set?: boolean }} Options */
 
 const MAX_U8  = 2 ** 8;
 const MAX_U16 = 2 ** 16;
@@ -26,15 +27,16 @@ const MAX_I16 = MAX_U16 / 2;
 const MAX_I32 = MAX_U32 / 2;
 
 const { isInteger } = Number;
-const { keys } = Object;
+const { ownKeys } = Reflect;
 
+/** @type {(self: View) => number[] | Uint8Array} */
 let valueOf;
 
 class View {
   static {
     /**
      * @param {View} self
-     * @returns
+     * @returns {number[] | Uint8Array}
      */
     valueOf = self => self.#value;
   }
@@ -61,23 +63,23 @@ const gr8 = (output, type) => {
 
 /**
  * @param {Output} output
+ * @param {unknown[]} stack
  * @param {unknown} value
  * @param {boolean} set
  */
-const augment = (output, value, set) => {
+const augment = (output, stack, value, set) => {
   let type = CUSTOM;
   if (value instanceof View) {
-    value = valueOf(value);
-    if (isArray(value)) value = new Uint8Array(value);
+    const raw = valueOf(value);
+    output.push(type);
+    const length = raw.length;
+    uint(output, ARRAY, length);
+    push(output, isArray(raw) ? new Uint8Array(raw) : raw, length, set);
   }
   else {
-    type |= I8;
-    value = new Uint8Array(encode(value));
+    output.push(type | I8);
+    stack.push(item(ARRAY, value));
   }
-  output.push(type);
-  const length = /** @type {Uint8Array} */ (value).length;
-  uint(output, NUMBER, length);
-  push(output, /** @type {Uint8Array} */ (value), length, set);
 };
 
 /**
@@ -141,30 +143,35 @@ const push = (output, bytes, length, set) => {
     (/** @type {Shared} */ (output)).set(bytes, output.length);
   }
   else {
-    for (let i = 0; i < length; i += I16)
-      output.push.apply(output, bytes.subarray(i, i + I16));
+    for (let i = 0; i < length; i += MAX_U16)
+      output.push.apply(output, bytes.subarray(i, i + MAX_U16));
   }
 };
 
-/**
- * @param {Output} output
- * @param {Map<unknown, number>} cache
- * @param {string} data
- * @param {boolean} set
- */
-const string = (output, cache, data, set) => {
-  if (data === '')
-    output.push(STRING);
-  else if (cache.has(data))
-    uint(output, RECURSION, cache.get(data));
-  else {
-    const bytes = encoder.encode(data);
-    const length = bytes.length;
-    cache.set(data, output.length);
-    uint(output, STRING, length);
-    push(output, bytes, length, set);
-  }
+const stringOrSymbol = type => {
+  /**
+   * @param {Output} output
+   * @param {Map<unknown, number>} cache
+   * @param {string} data
+   * @param {boolean} set
+   */
+  return (output, cache, data, set) => {
+    if (data === '')
+      output.push(type);
+    else if (cache.has(data))
+      uint(output, RECURSION, cache.get(data));
+    else {
+      const bytes = encoder.encode(data);
+      const length = bytes.length;
+      cache.set(data, output.length);
+      uint(output, type, length);
+      push(output, bytes, length, set);
+    }
+  };
 };
+
+const string = stringOrSymbol(STRING);
+const symbol = stringOrSymbol(STRING | NUMBER);
 
 /**
  * @param {Output} output
@@ -192,18 +199,39 @@ const uint = (output, type, length) => {
   }
 };
 
+const arrayItems = (output, stack, v) => {
+  let length = v.length;
+  uint(output, ARRAY, length);
+  while (length--) stack.push(item(null, v[length]));
+};
+
 /**
  * Encodes data as uint8 values
  * @param {unknown} data
  * @param {Options} options
  * @returns
  */
-export const encode = (data, { output = [], custom = options.custom, set = false } = options) => {
+export const encode = (data, {
+  custom = options.custom,
+  fn = false,
+  json = true,
+  output = [],
+  set = false
+} = options) => {
   const cache = new Map;
   const stack = [item(null, data)];
   while (stack.length) {
     const { k, v } = stack.pop();
-    if (k !== null) string(output, cache, k, set);
+
+    if (k !== null) {
+      if (k === ARRAY) {
+        arrayItems(output, stack, v);
+        continue;
+      }
+      else if (typeof k === 'string') string(output, cache, k, set);
+      else symbol(output, cache, toSymbol(k), set);
+    }
+
     switch (typeof v) {
       case 'bigint':
         bigint(output, v);
@@ -211,11 +239,22 @@ export const encode = (data, { output = [], custom = options.custom, set = false
       case 'boolean':
         output.push(v ? TRUE : FALSE);
         continue;
+      case 'function': {
+        if (fn) {
+          const value = custom(v);
+          if (value !== v) augment(output, stack, value, set);
+          else output.push(NULL);
+        }
+        continue;
+      }
       case 'number':
         number(output, v);
         continue;
       case 'string':
         string(output, cache, v, set);
+        continue;
+      case 'symbol':
+        symbol(output, cache, toSymbol(v), set);
         continue;
       case 'object':
         if (v) {
@@ -225,24 +264,22 @@ export const encode = (data, { output = [], custom = options.custom, set = false
           }
 
           cache.set(v, output.length);
-          if ('toJSON' in v && typeof v.toJSON === 'function') {
+
+          const value = custom(v);
+          if (value !== v) {
+            augment(output, stack, value, set);
+            continue;
+          }
+
+          if (json && 'toJSON' in v && typeof v.toJSON === 'function') {
             const value = v.toJSON();
             if (value === v) output.push(NULL);
             else stack.push(item(null, value));
             continue;
           }
 
-          const value = custom(v);
-          if (value !== v) {
-            augment(output, value, set);
-            continue;
-          }
-
           if (isArray(v)) {
-            let length = v.length;
-            uint(output, ARRAY, length);
-            while (length--)
-              stack.push(item(null, v[length]));
+            arrayItems(output, stack, v);
             continue;
           }
 
@@ -253,46 +290,48 @@ export const encode = (data, { output = [], custom = options.custom, set = false
             continue;
           }
 
-          const own = keys(v).filter(compatible, v);
-          let length = own.length;
+          const own = ownKeys(v);
+          let length = own.length, start = output.length + 1;
+          // optimistic ... the amount of key/value pairs might differ (lower)
           uint(output, OBJECT, length);
+          let size = length && (output.length - start), added = 0;
           while (length--) {
             const key = own[length];
-            stack.push(item(key, v[key]));
+            const value = v[key];
+            switch (typeof value) {
+              case 'undefined': break;
+              case 'function': if (!fn) break;
+              default:
+                added++;
+                stack.push(item(key, value));
+                break;
+            }
+          }
+          // adjust size if added values are less than the number of own keys
+          if (added < own.length) {
+            if (size === 1) v8[0] = added;
+            else if (size === 2) dv.setUint16(0, added, true);
+            else if (size === 4) dv.setUint32(0, added, true);
+            /* c8 ignore next */
+            else dv.setFloat64(0, added, true);
+            if (set) {
+              (/** @type {Shared} */ (output)).set(v8.subarray(0, size), start);
+              // force length to be the actual length of the output
+              // after amending the size of the key/value pairs
+              output.length = start + size;
+            }
+            else while (size--) output[start + size] = v8[size];
           }
           continue;
         }
-      case 'undefined':
-        output.push(NULL);
-        continue;
       default: {
-        const value = custom(v);
-        if (value !== v) augment(output, value, set);
-        else output.push(NULL);
+        output.push(NULL);
         continue;
       }
     }
   }
   return output;
 };
-
-/**
- * @this {Record<string, unknown>}
- * @param {string} key
- * @returns
- */
-function compatible(key) {
-  switch (typeof this[key]) {
-    case 'bigint':
-    case 'boolean':
-    case 'number':
-    case 'string':
-    case 'object':
-      return true;
-    default:
-      return false;
-  }
-}
 
 /**
  * @param {number[] | Uint8Array} value

@@ -4,7 +4,14 @@
 
 <sup>**Social Media Photo by [Sebastian Schuster](https://unsplash.com/@sschusterphotoart) on [Unsplash](https://unsplash.com/)**</sup>
 
-It's like [flatted](https://github.com/WebReflection/flatted) but with *Uint8Array* and binary data in mind, with broader support for `bigint` and `Uint8Array` views plus *custom types* to satisfy any need.
+**JSON-shaped data, binary on the wire, graphs that don’t explode.** [flatted](https://github.com/WebReflection/flatted) proved you can ship circular structures as portable JSON; *flatted-view* carries that idea into **bytes**—`Uint8Array` views, `bigint`, symbols, optional hooks for anything weirder, and a path to **growable `SharedArrayBuffer`** so workers and WASM can share payloads without an extra “allocate, then copy” memory spike.
+
+If you move structured state across threads, into WASM, or over the network and want **one format** that stays close to JSON semantics yet speaks **binary**, this is meant for you.
+
+The package ships two entry points:
+
+- **`flatted-view`** — core encoder/decoder: JSON-compatible values, `bigint`, `Uint8Array`, **symbols**, recursion-safe graphs, your own **`custom`** / **`view`** hooks, and the **`Shared`** helper for **growable** shared/resizable buffers (see below).
+- **`flatted-view/extras`** — same API shape, but wraps the core with a built-in **`custom`** implementation that understands **TypedArray** (other than `Uint8Array`), **ArrayBuffer**, **Date**, **Map**, **Set**, **RegExp**, **Error**, **File**, **Blob**, and **ImageData** (when `globalThis.ImageData` exists).
 
 ```js
 import { decode, encode, view } from 'https://esm.run/flatted-view';
@@ -44,25 +51,75 @@ const decoded = decode(encoded);
 // that's it 👍
 ```
 
-To test cross *PL* compatibility, see [MicroPython Live Demo](./test/micropython/), based on [PyScript](https://pyscript.net/) remote packages feature.
+Extras example (TypedArray, `Map`, `Blob`, etc.):
+
+```js
+import { decode, encode } from 'https://esm.run/flatted-view/extras';
+
+const map = new Map([['a', 1], ['b', 2]]);
+const roundTrip = decode(encode(map));
+// Map with the same entries
+
+// Blob body is read asynchronously — encode may return a Promise<Uint8Array | number[] | Shared>
+const blob = new Blob([JSON.stringify({ ok: true })], { type: 'application/json' });
+const out = await encode(blob);
+decode(out);
+```
+
+### Project status — you’re invited
+
+This module is **young**: the core format and APIs are stable enough to **build on**, but edge cases, ergonomics, and “extras” on other runtimes will keep evolving. **Try it in side projects, fuzz it, wrap it from Pyodide or your bundler, or throw generated clients at it** — real usage is what turns rough corners into issues we can fix.
+
+If something breaks, surprises you, or feels under-documented, **open an issue** or drop a PR. The same goes if you’re using **assistive tooling** (including AI) to explore the API: feedback from those workflows still helps tighten examples and behavior.
+
+To test cross *PL* compatibility, see [MicroPython Live Demo](./test/micropython/), based on [PyScript](https://pyscript.net/) remote packages feature. A [Python](./python/) implementation targets the **same JSON-compatible core** on the wire.
 
 ## Features
 
 | feature | description |
 | :--- | :--: |
-| fast | smart cache and battle-tested logic |
+| fast | tight loops, reference caching, and format tuned for real payloads |
 | recursion (stack based) | 5K nested arrays or literals? not a problem! |
 | bigint | compatible out of the box |
+| symbols (core) | well-known, `Symbol.for`, and local symbols round-trip |
 | custom types | add any type you like, no fuss attached |
+| extras types | TypedArray, ArrayBuffer, Date, Map, Set, RegExp, Error, File, Blob, ImageData |
 | compact outcome | types and lengths are embedded and optimized |
 | binary format | works for *SharedArrayBuffer* too |
-| `toJSON` | compatible with legacy `toJSON` behavior |
+| **`Shared` + `set: true`** | encode **into** a growable buffer in one pass: virtual length, **64 KiB** page growth (same as WASM), no extra copy peak |
+| `toJSON` | when `json` is `true` (default), objects with `toJSON` use legacy behavior; pass **`json: false`** on **`encode`** to skip that and encode the live object graph instead |
+| **`fn` (encode only)** | by default, **functions** are dropped (properties omitted, standalone `encode(fn)` → `undefined`). Pass **`fn: true`** on **`encode`** so each function is passed to **`custom(fn)`** and can be replaced or encoded via **`view(...)`**; there is no `fn` option on **`decode`** |
 | cross PL | *Python* variant [available](./python/) |
 
+## Entry points
 
-## Supported Types
+| import | purpose |
+| :--- | :--- |
+| `flatted-view` | Core: JSON types, `bigint`, `Uint8Array`, symbols, optional **`fn`** (**encode** only; enables `custom` for functions) / **`json`** (default `true`; set `false` to disable `toJSON`) / `custom` / `view` |
+| `flatted-view/extras` | Core plus built-in encoding for extra built-ins (see table below). Uses a fixed internal `custom` — you cannot pass your own `custom` through this wrapper; use the core package if you need a fully user-defined `custom`. |
 
-All JSON-compatible types are supported, plus more:
+### The `Shared` class (`set: true`)
+
+The main export **`Shared`** is a small **`Uint8Array`** subclass meant to sit on top of a **growable** **`SharedArrayBuffer`** or **resizable `ArrayBuffer`**. It exists so encode/decode stay **view-first** without forcing everything through a plain `number[]`.
+
+- **Virtual `.length`** — The instance tracks how many bytes are logically written (`this._`). That value is what the encoder treats as the end of the payload, so you do not run past meaningful data or fight the underlying slab’s larger `byteLength`. You can reset `.length` and reuse the same backing memory for another run.
+- **`set: true` + `output: shared`** — When **`encode`** is called with **`set: true`** and **`output`** is a **`Shared`** instance, writes go **straight into that buffer** via **`set`** / **`push`** semantics: no separate “allocate full size, then copy” step. That matters because a growable buffer can only **grow**; the naive alternative is to materialize a second buffer and copy into it, which briefly needs **roughly twice the RAM** for the same payload.
+- **Page growth** — If a write would exceed the current view window, the backing buffer is grown in **64 KiB (2¹⁶) byte** steps (aligned to a page boundary), the same **page size** used by **WebAssembly** linear memory. Growth is capped by the buffer’s **`maxByteLength`**.
+
+```js
+import { Shared, encode, decode } from 'https://esm.run/flatted-view';
+
+const sab = new SharedArrayBuffer(8, { maxByteLength: 2 ** 20 });
+const out = new Shared(sab);
+encode({ ok: true }, { output: out, set: true });
+decode(out); // decoder accepts this `Shared` view; logical length is the virtual `.length`
+```
+
+Plain **`number[]`** or **`Uint8Array`** outputs are still fine when you do not need shared or growable semantics.
+
+## Supported types
+
+All JSON-compatible types are supported in the core package, plus more:
 
 | type | bits | value |
 | :--- | :--: | :---: |
@@ -77,9 +134,47 @@ All JSON-compatible types are supported, plus more:
 | RECURSION | `01110000` | 🔁 |
 | CUSTOM | `11111110` | value returned as `view(...)` or directly |
 
-The optional `custom` callback can return any value or a `view(number[] | Uint8Array)` value, which is then converted as such.
+### Extras-built-in types (via `flatted-view/extras`)
 
-When the `view(...)` utility is **not** used, the returned value is encoded via `encode(value)` so that it fits into the current `output`.
+These are not special-cased in the bit table; they are normalized to tagged arrays or `view(...)` payloads by the extras `custom` handler, then decoded back in `extras`’ decode.
+
+| kind | encoding idea |
+| :--- | :--- |
+| **TypedArray** (not `Uint8Array`) | constructor name + backing buffer, byte offset, optional length |
+| **ArrayBuffer** | wrapped as bytes |
+| **Date** | ISO string in a tagged structure |
+| **Map** / **Set** | size + entries |
+| **RegExp** | source + flags |
+| **Error** | constructor name, message, stack |
+| **File** / **Blob** | metadata + bytes (Blob/`File` may make `encode` **async** because `arrayBuffer()` is async) |
+| **ImageData** | pixel data + dimensions + color space / pixel format when available |
+
+### The `custom` callback and `view()`
+
+You can pass **`custom(value)`** in **`encode`** options (core package). It runs before default object/array/`Uint8Array` handling:
+
+1. **No change** — If `custom(value) === value`, encoding continues with the normal rules: optional **`toJSON`** (only when **`json`** is not `false`), then arrays, plain objects, `Uint8Array`, etc.
+2. **Replacement value** — If `custom` returns something else, that return value is encoded **instead of** walking the original value again for that step.
+
+How the replacement is encoded depends on what you return:
+
+- **`view(number[] | Uint8Array)`** — The encoder writes a **CUSTOM** block whose **payload is exactly those bytes** (plus the usual framing). Those bytes are **not** interpreted as a nested value graph on the main encoder stack. That is how you can inject **pre-serialized** data without hitting the same recursion/stack machinery used for nested objects and arrays. Use this when you already flattened a subtree to bytes (or when you want a single opaque blob).
+- **Any other value** — The encoder calls **`encode(returnedValue, …)`** again on that value (same options), so the result participates in the normal stack-based walk. That is appropriate when you return a plain array or object “view model” of your value.
+
+The optional **`decode`** hook is **`custom(value, fromView)`**. The second argument tells you how **`value`** was produced:
+
+- **`fromView === false`** — The value was **stack-decoded** already (the normal graph walk). There is usually nothing to “unwrap”; you can return **`value`** as-is unless you still want to normalize it.
+- **`fromView === true`** — The value is the CUSTOM **payload from a `view(...)` encode** (opaque nested encoding). This is where you **counter-revive** whatever you put on the wire during **`encode`**’s `custom` / **`view`**: decode the inner shape, rebuild class instances, etc.
+
+So the decode **`custom`** handler always knows whether it is seeing a **view payload** or an **already-resolved** value.
+
+When the `view(...)` utility is **not** used for a replacement, the returned value is encoded via `encode(value)` so that it fits into the current `output`.
+
+### Functions and the `fn` option (**encode** only)
+
+The **`fn`** flag exists only on **`encode`** options — **`decode`** has no corresponding switch. Out of the box, functions are treated like values you do not want on the wire: **function** properties on objects are **skipped** (same as `undefined`), and encoding a **standalone** function yields **`undefined`**.
+
+With **`fn: true`**, the encoder **stops discarding** functions and instead runs your **`custom(fn)`** for each one, so you can replace a function with a serializable stand-in or a **`view(...)`** payload. If **`custom` returns the same function reference**, the format stores **`null`**. If **`custom` returns something else**, that value is encoded like any other replacement (including **`view(...)`** as above).
 
 ### Recursion
 
@@ -95,14 +190,16 @@ If your custom handler receives a value with `typeof value === 'object'`, rest a
 
 Anything JSON-compatible survives encoding and decoding. The `custom(value)` callback lets you define a specific return type for a given value without dictating how or what that should be.
 
-Use `view(value)` to return an array of `uint8` values or a `Uint8Array` view of your own data. If you prefer a different encoding, you can still define any custom type—including `Map`, `Set`, and others.
+By default, objects that implement **`toJSON`** are serialized through that method (like `JSON.stringify`). To encode the **actual** object instead (e.g. preserve non-JSON fields the method would drop), pass **`json: false`** to **`encode`**.
+
+Use `view(value)` to return an array of `uint8` values or a `Uint8Array` view of your own data. If you prefer a different encoding, you can still define any custom type—including `Map`, `Set`, and others (or use **`flatted-view/extras`** for many built-ins).
 
 ### Numbers
 
 The `NUMBER` type embeds the number *type* and the bytes needed to represent the next entries.
 
 | type | bits | value |
-| :--- | :---: | :--: |
+| :--- | :--: | :--: |
 | int8  | `10000001` | -128 to 127 |
 | int16 | `10000010` | -32768 to 32767 |
 | int32 | `10000100` | -2147483648 to 2147483647 |
@@ -218,6 +315,10 @@ NUMERIC_ONLY = NUMBER | RECURSION
   * **why only one view type is supported?**
     * because [Uint8Array is special](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array#description) and it can carry or represent any other view
     * because anything that produces a *view* is usually producing a *Uint8Array*
-    * because with *custom* types one can reproduce anything else if, or when, needed
+    * because with *custom* types (or **`flatted-view/extras`**) one can reproduce anything else if, or when, needed
   * **what about symbols?**
-    * these require very special and ad-hoc handling, if your data contains or needs to pass along *symbols*, you better use the `custom(value)` escape hook to transform these into something meaningful that can be then revived
+    * the core codec encodes **symbols** directly (well-known symbols, registered symbols via `Symbol.for`, and local symbols with descriptions). You can still use **`custom`** if you need a different string form or non-symbol output on the wire
+
+---
+
+**Build something with it.** If flatted-view saves you a copy, a conversion, or a headache, or if it doesn’t—say so. Early adopters (and early experiments) are how this gets better.

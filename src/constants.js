@@ -33,6 +33,7 @@ export const STRING    = 1 << 6;                         // 01000000
 export const NUMBER    = 1 << 7;                         // 10000000
 
 // VIEW as UINT8_ARRAY = ARRAY | NUMBER                  // 10100000
+// SYMBOL as STRING | NUMBER                             // 11000000
 
 // recursive types (or encoded and decoded once)
 export const RECURSION = ARRAY | OBJECT | STRING;        // 01110000

@@ -9,6 +9,7 @@
         "declarationDir": "types"
     },
     "include": [
-        "src/index.js"
+        "src/index.js",
+        "src/extras/index.js",
     ]
 }

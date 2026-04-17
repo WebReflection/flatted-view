@@ -20,6 +20,18 @@
       "import": "./src/shared.js",
       "types": "./types/shared.d.ts"
     },
+    "./extras": {
+      "import": "./src/extras/index.js",
+      "types": "./types/index.d.ts"
+    },
+    "./encoder/extras": {
+      "import": "./src/extras/encode.js",
+      "types": "./types/extras/encode.d.ts"
+    },
+    "./decoder/extras": {
+      "import": "./src/extras/decode.js",
+      "types": "./types/extras/decode.d.ts"
+    },
     "./package.json": "./package.json"
   },
   "name": "flatted-view",
