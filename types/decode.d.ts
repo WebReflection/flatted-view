@@ -11,6 +11,11 @@ export type CustomDecodeValue = [unknown[], {
     k: number;
     v: unknown;
 }];
+/**
+ * Decode `custom`: second arg is **`fromView`**. When `true`, `value` is the CUSTOM payload from a
+ * `view(...)` encode (opaque bytes / nested encoding) and usually needs revival; when `false`, the
+ * value was already resolved by the stack decoder and can often be returned as-is.
+ */
 export type Options = {
-    custom?: (value: unknown, encoded: boolean) => unknown;
+    custom?: (value: unknown, fromView: boolean) => unknown;
 };

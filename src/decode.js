@@ -21,7 +21,11 @@ const ignore = item(NULL, null);
  * @typedef {[unknown[], { k: number, v: unknown }]} CustomDecodeValue
  */
 
-/** @typedef {{ custom?: (value: unknown, encoded: boolean) => unknown }} Options */
+/**
+ * Decode `custom`: second arg is **`fromView`**. When `true`, `value` is the CUSTOM payload from a
+ * `view(...)` encode (opaque bytes / nested encoding) and usually needs revival; when `false`, the
+ * value was already resolved by the stack decoder and can often be returned as-is.
+ * @typedef {{ custom?: (value: unknown, fromView: boolean) => unknown }} Options */
 
 /**
  * @param {Uint8Array} input
@@ -130,7 +134,7 @@ export const decode = (view, { custom = options.custom } = options) => {
    */
   const finalize = (k, v, known) => {
     const [value, { k: key, v: parent }] = v;
-    entry = custom(value, k === STACK_DECODED);
+    entry = custom(value, k !== STACK_DECODED);
     cache.set(known, entry);
     if (parent) parent[key] = entry;
     else if (first) result = entry;
