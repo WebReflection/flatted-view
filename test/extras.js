@@ -47,6 +47,24 @@ assert(typed.byteLength, 12);
 
 assert(decode(encode(new Uint8Array(typed))).length, 12);
 
+typed = new Float32Array(new ArrayBuffer(4));
+typed[0] = 1.2300000190734863;
+
+typed = decode(encode(typed));
+
+assert(typed.byteOffset, 0);
+assert(typed.length, 1);
+assert(typed[0], 1.2300000190734863);
+
+typed = new Float32Array(new ArrayBuffer(8), 0, 1);
+typed[0] = 1.2300000190734863;
+
+typed = decode(encode(typed));
+
+assert(typed.byteOffset, 0);
+assert(typed.length, 1);
+assert(typed[0], 1.2300000190734863);
+
 let date = new Date;
 date = decode(encode(date));
 

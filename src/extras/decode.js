@@ -5,8 +5,8 @@ import { BUFFER, VIEW, BLOB, FILE, ERROR, REGEXP, DATE, MAP, SET, IMAGE_DATA } f
 const { defineProperty } = Object;
 
 const decode = (view, options) => {
-  return _decode(view, { ...options, custom(value) {
-    const v = _decode(value);
+  return _decode(view, { ...options, custom(value, decoded) {
+    const v = decoded ? value : _decode(value);
     switch (v[0]) {
       case BUFFER:
         return v[1].buffer;

@@ -7,7 +7,7 @@ import { isArray, item, options, dv, v8 } from './utils.js';
 import { fromSymbol } from './symbols.js';
 
 const NUMBER_IGNORE = ~(RECURSION | NUMBER);
-const CUSTOM_REVIVE = CUSTOM | I8;
+const STACK_DECODED = CUSTOM | I8;
 
 const decoder = new TextDecoder;
 const ignore = item(NULL, null);
@@ -15,6 +15,11 @@ const ignore = item(NULL, null);
 /** @typedef {{ i: number }} Index */
 
 /** @typedef {number[] | Uint8Array | import('./shared.js').default} Input */
+
+/**
+ * Stack payload while finishing a CUSTOM value: chunk buffers and finalized values.
+ * @typedef {[unknown[], { k: number, v: unknown }]} CustomDecodeValue
+ */
 
 /** @typedef {{ custom?: (value: unknown, encoded: boolean) => unknown }} Options */
 
@@ -117,6 +122,21 @@ const string = (input, cache, type, index) => {
  * @returns {unknown?}
  */
 export const decode = (view, { custom = options.custom } = options) => {
+  /**
+   * @param {CUSTOM | STACK_DECODED} k
+   * @param {[unknown[] | Uint8Array, { k: number, v: unknown }]} v
+   * @param {number} known
+   * @returns
+   */
+  const finalize = (k, v, known) => {
+    const [value, { k: key, v: parent }] = v;
+    entry = custom(value, k === STACK_DECODED);
+    cache.set(known, entry);
+    if (parent) parent[key] = entry;
+    else if (first) result = entry;
+    return entry;
+  };
+
   const input = isArray(view) ? new Uint8Array(view) : view;
 
   /** @type {Map<unknown, unknown>} */
@@ -135,12 +155,9 @@ export const decode = (view, { custom = options.custom } = options) => {
 
     if (k === OBJECT) prop = key(input, cache, index);
     else if (CUSTOM <= k && isArray(v)) {
-      const [value, { k: key, v: parent }] = v;
-      entry = custom(value, k === CUSTOM_REVIVE);
-      cache.set(cache.get(value), entry);
-      value.push(entry);
-      // @ts-ignore
-      if (parent) parent[key] = entry;
+      const custom = /** @type {CustomDecodeValue} */ (v);
+      const knownRef = /** @type {number} */ (cache.get(custom[0]));
+      custom[0].push(finalize(k, custom, knownRef));
       continue;
     }
 
@@ -155,8 +172,7 @@ export const decode = (view, { custom = options.custom } = options) => {
       entry = [];
       cache.set(known, entry);
       cache.set(entry, known);
-      // @ts-ignore
-      stack.push(item(type, item(k === OBJECT ? prop : (k === ARRAY ? v.length : null), v)));
+      stack.push(item(type, item(k === OBJECT ? prop : (k === ARRAY ? /** @type {unknown[]} */(v).length : null), v)));
       continue;
     }
 
@@ -190,6 +206,16 @@ export const decode = (view, { custom = options.custom } = options) => {
         if (kind === ARRAY) {
           if (isCustom) {
             entry = cache.get(known - 1);
+            // it's safe to directly resolve encoded views
+            if (k !== STACK_DECODED) {
+              const target = /** @type {unknown[]} */ (entry);
+              const pair = /** @type {CustomDecodeValue} */ ([
+                /** @type {number[] | Uint8Array} */(slice(input, length, index)),
+                /** @type {{ k: number, v: unknown }} */ (v),
+              ]);
+              target.push(finalize(k, pair, known - 1));
+              continue;
+            }
             stack.push(item(k, [entry, v]));
           }
           else {

@@ -29,13 +29,14 @@ const MAX_I32 = MAX_U32 / 2;
 const { isInteger } = Number;
 const { ownKeys } = Reflect;
 
+/** @type {(self: View) => number[] | Uint8Array} */
 let valueOf;
 
 class View {
   static {
     /**
      * @param {View} self
-     * @returns
+     * @returns {number[] | Uint8Array}
      */
     valueOf = self => self.#value;
   }
@@ -64,13 +65,21 @@ const gr8 = (output, type) => {
  * @param {Output} output
  * @param {unknown[]} stack
  * @param {unknown} value
+ * @param {boolean} set
  */
-const augment = (output, stack, value) => {
+const augment = (output, stack, value, set) => {
   let type = CUSTOM;
-  if (value instanceof View) value = valueOf(value);
-  else type |= I8;
-  output.push(type);
-  stack.push(item(ARRAY, value));
+  if (value instanceof View) {
+    const raw = valueOf(value);
+    output.push(type);
+    const length = raw.length;
+    uint(output, ARRAY, length);
+    push(output, isArray(raw) ? new Uint8Array(raw) : raw, length, set);
+  }
+  else {
+    output.push(type | I8);
+    stack.push(item(ARRAY, value));
+  }
 };
 
 /**
@@ -134,8 +143,8 @@ const push = (output, bytes, length, set) => {
     (/** @type {Shared} */ (output)).set(bytes, output.length);
   }
   else {
-    for (let i = 0; i < length; i += I16)
-      output.push.apply(output, bytes.subarray(i, i + I16));
+    for (let i = 0; i < length; i += MAX_U16)
+      output.push.apply(output, bytes.subarray(i, i + MAX_U16));
   }
 };
 
@@ -233,7 +242,7 @@ export const encode = (data, {
       case 'function': {
         if (fn) {
           const value = custom(v);
-          if (value !== v) augment(output, stack, value);
+          if (value !== v) augment(output, stack, value, set);
           else output.push(NULL);
         }
         continue;
@@ -258,7 +267,7 @@ export const encode = (data, {
 
           const value = custom(v);
           if (value !== v) {
-            augment(output, stack, value);
+            augment(output, stack, value, set);
             continue;
           }
 

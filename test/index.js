@@ -213,10 +213,12 @@ decoded = decode(encoded);
 assert(decoded, Symbol.iterator);
 
 encoded = encode([1, 2, 3], {
-  custom: value => view(value)
+  custom: value => view(new Uint8Array(encode(value)))
 });
 
-decoded = decode(encoded);
+decoded = decode(encoded, {
+  custom: value => decode(value)
+});
 
 assert([1, 2, 3].join(','), decoded.join(','));
 
@@ -384,4 +386,4 @@ assert(1, encode({}).length);
 
 assert([0, 1, 0, 'a', 0, '', 0, 'b'].join(','), decode(encode([0, 1, 0, 'a', 0, '', 0, 'b'])).join(','));
 
-// import('./extras.js');
+import('./extras.js');
