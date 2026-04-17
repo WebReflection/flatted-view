@@ -1,4 +1,4 @@
-export function encode(data: unknown, { custom, fn, output, set }?: Options): Output;
+export function encode(data: unknown, { custom, fn, json, output, set }?: Options): Output;
 export function view(value: number[] | Uint8Array): View;
 export default encode;
 export type custom = (value: unknown) => unknown | View;
@@ -7,6 +7,7 @@ export type Output = number[] | Shared;
 export type Options = {
     custom?: custom;
     fn?: boolean;
+    json?: boolean;
     output?: Output;
     set?: boolean;
 };

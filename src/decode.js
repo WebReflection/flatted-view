@@ -41,7 +41,7 @@ const floating = (input, index) => {
 
 /**
  * @param {Uint8Array} input
- * @param {Map<number, unknown>} cache
+ * @param {Map<unknown, unknown>} cache
  * @param {Index} index
  * @returns
  */
@@ -66,7 +66,7 @@ const number = (input, type, index) => {
 
   v8[0] = input[index.i++];
 
-  if (type === U8) return dv.getUint8(0);
+  if (type === U8) return v8[0];
   if (type === I8) return dv.getInt8(0);
 
   v8[1] = input[index.i++];
@@ -95,7 +95,7 @@ const slice = (input, length, index) => {
 
 /**
  * @param {Uint8Array} input
- * @param {Map<number, unknown>} cache
+ * @param {Map<unknown, unknown>} cache
  * @param {number} type
  * @param {Index} index
  * @returns {string}
@@ -119,7 +119,7 @@ const string = (input, cache, type, index) => {
 export const decode = (view, { custom = options.custom } = options) => {
   const input = isArray(view) ? new Uint8Array(view) : view;
 
-  /** @type {Map<number, unknown>} */
+  /** @type {Map<unknown, unknown>} */
   const cache = new Map;
 
   /** @type {Index} */
@@ -131,9 +131,18 @@ export const decode = (view, { custom = options.custom } = options) => {
   let first = true, result, entry, prop;
 
   while (stack.length) {
-    const { k, v } = stack.pop();
+    let { k, v } = stack.pop();
 
     if (k === OBJECT) prop = key(input, cache, index);
+    else if (CUSTOM <= k && isArray(v)) {
+      const [value, { k: key, v: parent }] = v;
+      entry = custom(value, k === CUSTOM_REVIVE);
+      cache.set(cache.get(value), entry);
+      value.push(entry);
+      // @ts-ignore
+      if (parent) parent[key] = entry;
+      continue;
+    }
 
     const type = input[index.i++];
 
@@ -142,10 +151,13 @@ export const decode = (view, { custom = options.custom } = options) => {
     else if (type === NULL) entry = null;
 
     else if (CUSTOM <= type) {
-      const length = number(input, input[index.i++], index);
-      const view = slice(input, length, index);
-      const revive = type === CUSTOM_REVIVE;
-      entry = custom(revive ? decode(view) : view, !revive);
+      const known = index.i - 1;
+      entry = [];
+      cache.set(known, entry);
+      cache.set(entry, known);
+      // @ts-ignore
+      stack.push(item(type, item(k === OBJECT ? prop : (k === ARRAY ? v.length : null), v)));
+      continue;
     }
 
     else if (type & NUMBER) {
@@ -171,12 +183,19 @@ export const decode = (view, { custom = options.custom } = options) => {
       else if (kind === STRING) entry = string(input, cache, type, index);
 
       else {
+        const isCustom = CUSTOM <= k;
         const known = index.i - 1;
         const length = number(input, type, index);
 
         if (kind === ARRAY) {
-          entry = [];
-          cache.set(known, entry);
+          if (isCustom) {
+            entry = cache.get(known - 1);
+            stack.push(item(k, [entry, v]));
+          }
+          else {
+            entry = [];
+            cache.set(known, entry);
+          }
           for (let next = item(ARRAY, entry), i = 0; i < length; i++)
             stack.push(next);
         }
@@ -195,10 +214,10 @@ export const decode = (view, { custom = options.custom } = options) => {
       result = entry;
     }
     else if (k === OBJECT) v[prop] = entry;
-    else if (k === ARRAY) (/** @type {Array<unknown>} */ (v)).push(entry);
+    else if (k === ARRAY) /** @type {unknown[]} */(v).push(entry);
   }
 
-  return result;
+  return isArray(result) && cache.has(result) ? /** @type {unknown[]} */(result).pop() : result;
 };
 
 export default decode;

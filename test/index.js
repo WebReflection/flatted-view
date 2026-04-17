@@ -31,7 +31,7 @@ assert(Object.keys(decode(encode(obj))).length, 2 ** 16);
 
 assert(decode(encode(function () {})), void 0);
 assert(decode(encode(function () {}, { fn: true })), null);
-assert(decode(encode(function () {}, { fn: true, custom: fn => typeof fn === 'function' })), true);
+assert(decode(encode(function () {}, { fn: true, custom: fn => [typeof fn === 'function'] }), { custom: ([value]) => value }), true);
 
 assert(decode(encode({[Symbol.toStringTag]: 'ok'}))[Symbol.toStringTag], 'ok');
 
@@ -258,18 +258,20 @@ decoded = decode(encoded);
 assert(Object.keys(decoded).length, 0);
 
 encoded = encode({}, {
-  custom: () => 1,
+  custom: () => [1],
 });
 decoded = decode(encoded, {
-  custom: value => value,
+  custom: ([value]) => value,
 });
 
 assert(1, decoded);
 
 encoded = encode({}, {
-  custom: () => 123,
+  custom: () => [123],
 });
-decoded = decode(encoded);
+decoded = decode(encoded, {
+  custom: ([value]) => value,
+});
 
 assert(123, decoded);
 
@@ -283,21 +285,55 @@ assert(123, decoded);
 encoded = encode(new Float32Array([1.23]), {
   custom(value) {
     if (value instanceof Float32Array)
-      return { typed: 'Float32Array', view: new Uint8Array(value.buffer) }
+      return ['Float32Array', new Uint8Array(value.buffer)];
     return value;
   }
 });
 
 decoded = decode(encoded, {
-  custom(value) {
-    if (typeof value === 'object' && typeof value?.typed === 'string')
-      value = new globalThis[value.typed](value.view.buffer);
-    return value;
+  custom([name, view]) {
+    return new globalThis[name](view.buffer);
   }
 });
 
 assert(true, decoded instanceof Float32Array);
 assert('1.23', decoded[0].toFixed(2));
+
+encoded = encode({ f32: new Float32Array([1.23]) }, {
+  custom(value) {
+    if (value instanceof Float32Array)
+      return ['Float32Array', new Uint8Array(value.buffer)];
+    return value;
+  }
+});
+
+decoded = decode(encoded, {
+  custom([name, view]) {
+    return new globalThis[name](view.buffer);
+  }
+});
+
+assert(true, decoded.f32 instanceof Float32Array);
+assert('1.23', decoded.f32[0].toFixed(2));
+
+encoded = encode([1, new Float32Array([1.23]), 3], {
+  custom(value) {
+    if (value instanceof Float32Array)
+      return ['Float32Array', new Uint8Array(value.buffer)];
+    return value;
+  }
+});
+
+decoded = decode(encoded, {
+  custom([name, view]) {
+    return new globalThis[name](view.buffer);
+  }
+});
+
+assert(1, decoded[0]);
+assert(3, decoded[2]);
+assert(true, decoded[1] instanceof Float32Array);
+assert('1.23', decoded[1][0].toFixed(2));
 
 
 encoded = encode([-(2 ** 4), -(2 ** 8), -(2 ** 16), -(2 ** 32)]);
@@ -348,4 +384,4 @@ assert(1, encode({}).length);
 
 assert([0, 1, 0, 'a', 0, '', 0, 'b'].join(','), decode(encode([0, 1, 0, 'a', 0, '', 0, 'b'])).join(','));
 
-import('./extras.js');
+// import('./extras.js');
