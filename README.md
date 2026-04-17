@@ -307,7 +307,7 @@ NUMERIC_ONLY = NUMBER | RECURSION
 
   * **why are strings recursive?**
     * because homogeneous collections are pretty common for anything *RESTful* so you get the automatic packing of same keys per row out of the box (background: [JSONH](https://github.com/WebReflection/JSONH#readme))
-    * because that works well in [flatted](https://github.com/WebReflection/flatted#readme) so I just brought in what 300M+ downloads per month believe is a good way to "*pack*" generic data
+    * because that works well in [flatted](https://github.com/WebReflection/flatted#readme) so I just brought in what 500M+ downloads per month believe is a good way to "*pack*" generic data
     * because [TextEncoder](https://github.com/whatwg/encoding/issues/343) is slow so once any cache is needed/used to avoid encoding same string twice, there's an opportunity to make it just recursive, as that takes *O(1)* to retrieve
   * **why are numbers so different?**
     * in *JSON* there is just `number` and nothing else, that includes floating-point numbers and signed or unsigned integers and that worked well for a long time except they had to patch *JSON* to also support the `bigint` primitive. In *flatted*, *bigints* are not supported, but because here we target *binary* data it made little sense not to support `bigint` as well, where negative *bigints* are stored as such and any positive *bigint* is stored as [setBigUint64](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView/setBigUint64)
