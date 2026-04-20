@@ -82,6 +82,37 @@ def _is_regex(o):
     return hasattr(o, "pattern") and hasattr(o, "flags") and callable(getattr(o, "match", None))
 
 
+def _extras_include_dict_entry(key, obj):
+    """Which ``dict`` / instance ``__dict__`` keys to serialize under :func:`encode` (extended types)."""
+    v = obj.get(key, None)
+    if v is None:
+        return True
+    t = type(v)
+    if t in (bool, int, float, str, list, tuple, dict, bytes, bytearray):
+        return True
+    if t is frozenset or t is set:
+        return True
+    if isinstance(v, OrderedDict):
+        return True
+    if t is memoryview:
+        return True
+    if isinstance(v, array.array):
+        return True
+    if isinstance(v, BaseException):
+        return True
+    if _is_regex(v):
+        return True
+    if t is complex:
+        return True
+    if isinstance(v, deque):
+        return True
+    if isinstance(v, io.BytesIO):
+        return True
+    if _is_file_like_binary(v):
+        return True
+    return False
+
+
 def encode(data, output=None):
     """Encode with extended Python types (same signature as :func:`python.encode.encode`)."""
 
@@ -144,9 +175,22 @@ def encode(data, output=None):
         return value
 
     def _direct(inner):
-        return view(bytes(_encode(inner, custom=custom)))
+        return view(
+            bytes(
+                _encode(
+                    inner,
+                    custom=custom,
+                    include_dict_entry=_extras_include_dict_entry,
+                )
+            )
+        )
 
-    return _encode(data, output=output, custom=custom)
+    return _encode(
+        data,
+        output=output,
+        custom=custom,
+        include_dict_entry=_extras_include_dict_entry,
+    )
 
 
 def decode(view_arg, custom=None):

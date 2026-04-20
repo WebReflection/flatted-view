@@ -34,6 +34,7 @@ from .constants import (
 
 _custom = lambda value: value
 
+
 def item(k, v):
     return {"k": k, "v": v}
 
@@ -57,6 +58,7 @@ class View:
 
 
 view = lambda value: View(value)
+
 
 def _uint(output, type_byte, length):
     if length == 0:
@@ -159,6 +161,7 @@ def _augment(output, stack, value):
 
 
 def _compatible(key, obj):
+    """JSON-like dict / instance ``__dict__`` entries for core encode (narrow)."""
     v = obj.get(key, None)
     if v is None:
         return True
@@ -166,7 +169,16 @@ def _compatible(key, obj):
     return t in (bool, int, float, str, list, tuple, dict, bytes, bytearray)
 
 
-def encode(data, output=None, custom=_custom):
+def encode(data, output=None, custom=_custom, include_dict_entry=_compatible):
+    """Encode to flatted-view binary.
+
+    Non-primitive values follow JS ``encode`` object semantics: identity cache, then
+    ``custom``, then JSON-like containers or instance ``__dict__``.
+
+    ``include_dict_entry(key, mapping)`` decides which keys are serialized for ``dict``
+    and for instance ``__dict__`` (default: JSON-compatible values only). Pass a
+    different predicate from :mod:`python.extras` for extended Python types.
+    """
     if output is None:
         output = []
 
@@ -201,7 +213,18 @@ def encode(data, output=None, custom=_custom):
             _string(output, cache, v)
             continue
 
-        # Object-like (list, tuple→array like list, dict, bytes, bytearray, or to_json)
+        # --- JS ``case 'object'`` (all non-primitive values): identity → custom → payload ---
+        if id(v) in cache:
+            _uint(output, RECURSION, cache[id(v)])
+            continue
+
+        cache[id(v)] = len(output)
+
+        custom_result = custom(v)
+        if custom_result is not v:
+            _augment(output, stack, custom_result)
+            continue
+
         to_json = getattr(v, "to_json", None) or getattr(v, "toJSON", None)
         if callable(to_json):
             replacement = to_json()
@@ -211,54 +234,31 @@ def encode(data, output=None, custom=_custom):
             stack.append(item(None, replacement))
             continue
 
-        if t in (list, tuple, dict, bytes, bytearray):
-            if id(v) in cache:
-                _uint(output, RECURSION, cache[id(v)])
-                continue
-
-            cache[id(v)] = len(output)
-
-            custom_result = custom(v)
-            if custom_result is not v:
-                _augment(output, stack, custom_result)
-                continue
-
-            if isinstance(v, (bytes, bytearray)):
-                length = len(v)
-                _uint(output, ARRAY | NUMBER, length)
-                output.extend(v[:length])
-                continue
-
-            if isinstance(v, (list, tuple)):
-                length = len(v)
-                _uint(output, ARRAY, length)
-                for i in range(length - 1, -1, -1):
-                    stack.append(item(None, v[i]))
-                continue
-
-            if isinstance(v, dict):
-                own = [key for key in v if _compatible(key, v)]
-                length = len(own)
-                _uint(output, OBJECT, length)
-                for i in range(length - 1, -1, -1):
-                    key = own[i]
-                    stack.append(item(key, v[key]))
-                continue
-
-        # Custom handler (before __dict__ so e.g. Symbol-like can return a value)
-        custom_result = custom(v)
-        if custom_result is not v:
-            _augment(output, stack, custom_result)
+        if isinstance(v, (bytes, bytearray)):
+            length = len(v)
+            _uint(output, ARRAY | NUMBER, length)
+            output.extend(v[:length])
             continue
 
-        # Class instance: encode __dict__ as object (like JS enumerable keys)
+        if isinstance(v, (list, tuple)):
+            length = len(v)
+            _uint(output, ARRAY, length)
+            for i in range(length - 1, -1, -1):
+                stack.append(item(None, v[i]))
+            continue
+
+        if isinstance(v, dict):
+            own = [key for key in v if include_dict_entry(key, v)]
+            length = len(own)
+            _uint(output, OBJECT, length)
+            for i in range(length - 1, -1, -1):
+                key = own[i]
+                stack.append(item(key, v[key]))
+            continue
+
         if hasattr(v, "__dict__"):
-            if id(v) in cache:
-                _uint(output, RECURSION, cache[id(v)])
-                continue
-            cache[id(v)] = len(output)
             d = v.__dict__
-            own = [key for key in d if _compatible(key, d)]
+            own = [key for key in d if include_dict_entry(key, d)]
             length = len(own)
             _uint(output, OBJECT, length)
             for i in range(length - 1, -1, -1):
@@ -266,7 +266,6 @@ def encode(data, output=None, custom=_custom):
                 stack.append(item(key, d[key]))
             continue
 
-        # Unsupported: null
         output.append(NULL)
 
     return output

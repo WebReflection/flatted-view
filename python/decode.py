@@ -136,7 +136,13 @@ def decode(view, custom=None):
         revived = custom(value, k != STACK_DECODED)
         cache[known] = revived
         if parent is not None:
-            parent[key] = revived
+            if isinstance(parent, list):
+                if key == len(parent):
+                    parent.append(revived)
+                else:
+                    parent[key] = revived
+            else:
+                parent[key] = revived
         elif first:
             result = revived
         return revived

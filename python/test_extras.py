@@ -93,6 +93,16 @@ assert_eq(pat.pattern, pat2.pattern)
 assert_eq(pat.flags, pat2.flags)
 assert pat2.match("ABBBBC")
 
+# Same Pattern object in several slots (matches test/extras.js duplicate RegExp refs)
+regexp = re.compile("test")
+multi_re = extras.decode(
+    extras.encode({"re1": regexp, "re2": regexp, "a": [regexp, regexp]})
+)
+assert_eq(regexp.pattern, multi_re["re1"].pattern)
+assert_eq(regexp.flags, multi_re["re1"].flags)
+assert multi_re["re1"] is multi_re["re2"]
+assert multi_re["a"][0] is multi_re["a"][1]
+
 # --- BytesIO ---
 bio = io.BytesIO(b"\x00\xffhello")
 bio2 = extras.decode(extras.encode(bio))
@@ -137,8 +147,7 @@ result = extras.decode(blob, custom=_extras_custom)
 assert_eq("from-custom", result)
 assert seen.get("hit") is True
 
-# --- encode only includes dict entries whose values pass encode._compatible (core types) ---
-# So set/complex/etc. as dict values are dropped unless wrapped (e.g. in a list) in a way the encoder supports.
-assert_eq({}, extras.decode(extras.encode({"k": {1, 2}})))
+# --- dict values: extras uses include_dict_entry (not core encode._compatible) ---
+assert_eq({"k": {1, 2}}, extras.decode(extras.encode({"k": {1, 2}})))
 
 print("All extras tests passed.")
