@@ -90,10 +90,12 @@ def _floating(output, value):
 
 
 def _number(output, value):
+    # Match JS encode `number()`: integer-valued floats use int width / uint, not F64.
     if isinstance(value, float):
-        _floating(output, value)
-        return
-    # int
+        if not value.is_integer():
+            _floating(output, value)
+            return
+        value = int(value)
     if value < 0:
         if -MAX_I8 <= value:
             output.append(NUMBER | I8)

@@ -2,17 +2,19 @@
 Mirror test/index.js for the Python encode/decode implementation.
 Run from repo root: PYTHONPATH=. python python/test_index.py
 """
+import os
 import sys
 import time
 
 # Allow running as script from repo root
 if __name__ == "__main__" and "." not in __name__:
-    import os
     parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if parent not in sys.path:
         sys.path.insert(0, parent)
 
 from python import encode, decode, view
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def assert_eq(expected, actual, msg=""):
@@ -41,6 +43,33 @@ assert_eq("1,2,3", ",".join(map(str, decoded["d"])))
 assert_eq(456, decoded["e"]["f"])
 assert_eq("world", decoded["e"]["g"])
 assert_eq(v, decoded["v"])
+
+# --- test/big.buffer: same fixture and checks as test/big.js (decode from bytes) ---
+with open(os.path.join(_REPO_ROOT, "test", "big.buffer"), "rb") as _big_f:
+    _big_buf = _big_f.read()
+_o = decode(_big_buf)
+_a = _o["a"]
+_MAX_SAFE_INTEGER = 9007199254740991
+assert_eq(True, _o["t"], "t")
+assert_eq(False, _o["f"], "f")
+assert_eq(None, _o["n"], "n")
+assert_eq(123, _o["uint"], "uint")
+assert_eq(-123, _o["int"], "int")
+assert_eq(255, _o["uint8"], "uint8")
+assert_eq(65535, _o["uint16"], "uint16")
+assert_eq(4294967295, _o["uint32"], "uint32")
+assert_eq(_MAX_SAFE_INTEGER - 1, _o["uint64"], "uint64")
+assert_eq(-123, _o["int8"], "int8")
+assert_eq(-32767, _o["int16"], "int16")
+assert_eq(-2147483647, _o["int32"], "int32")
+assert_eq(-_MAX_SAFE_INTEGER, _o["int64"], "int64")
+assert_eq(123.456, _o["f64"], "f64")
+assert_eq("string", _o["s"], "s")
+assert_eq(2, len(_a), "a")
+assert _a[0] is _o, "a[0]"
+assert _a[1] is _a, "a[1]"
+assert _o["o"] is _o, "o.o"
+assert_eq(_big_buf, bytes(encode(_o)), "encode(_o) matches test/big.buffer (JS encode)")
 
 # --- Repeated string in array ---
 encoded = encode(["a", "b", "a"])

@@ -104,6 +104,12 @@ def _slice(data, length, index):
 
 
 def decode(view, custom=None):
+    """Decode flatted-view binary to Python values.
+
+    ``view`` may be ``bytes`` (e.g. from ``open(path, "rb").read()``), ``bytearray``,
+    ``memoryview``, or any object that implements the buffer protocol (like a JS
+    ``Uint8Array`` backed buffer).
+    """
     if custom is None:
         custom = _default_custom
 
