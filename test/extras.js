@@ -103,6 +103,18 @@ assert(error.message, 'test');
 assert(error.stack, error.stack);
 
 let regexp = /test/g;
+
+const multi_re = decode(encode({
+  re1: regexp,
+  re2: regexp,
+  a: [regexp, regexp],
+}));
+
+assert(multi_re.re1.source, regexp.source);
+assert(multi_re.re1.flags, regexp.flags);
+assert(multi_re.re1, multi_re.re2);
+assert(multi_re.a[0], multi_re.a[1]);
+
 regexp = decode(encode(regexp));
 
 assert(regexp.source, 'test');

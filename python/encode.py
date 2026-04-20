@@ -94,7 +94,8 @@ def _number(output, value):
     # Match JS: narrow `number` widths where they apply; use BI/BUI (like JS `bigint`)
     # for int64-range integers instead of float / NUMBER|LEN (Python has one int type).
     if isinstance(value, float):
-        if not value.is_integer():
+        # MicroPython has no float.is_integer() utility
+        if value != int(value):
             _floating(output, value)
             return
         value = int(value)
@@ -200,7 +201,7 @@ def encode(data, output=None, custom=_custom):
             _string(output, cache, v)
             continue
 
-        # Object-like (list, tuple, dict, bytes, bytearray, or any object with to_json)
+        # Object-like (list, tuple→array like list, dict, bytes, bytearray, or to_json)
         to_json = getattr(v, "to_json", None) or getattr(v, "toJSON", None)
         if callable(to_json):
             replacement = to_json()
