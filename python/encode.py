@@ -76,6 +76,7 @@ def _uint(output, type_byte, length):
 
 
 def _bigint(output, value):
+    """Same as JS `bigint()`: int64 little-endian (BI) or uint64 (BUI), not float."""
     if value < 0:
         output.append(NUMBER | BI)
         output.extend(struct.pack("<q", value))
@@ -90,7 +91,8 @@ def _floating(output, value):
 
 
 def _number(output, value):
-    # Match JS encode `number()`: integer-valued floats use int width / uint, not F64.
+    # Match JS: narrow `number` widths where they apply; use BI/BUI (like JS `bigint`)
+    # for int64-range integers instead of float / NUMBER|LEN (Python has one int type).
     if isinstance(value, float):
         if not value.is_integer():
             _floating(output, value)
@@ -106,10 +108,25 @@ def _number(output, value):
         elif -MAX_I32 <= value:
             output.append(NUMBER | I32)
             output.extend(struct.pack("<i", value))
+        elif value >= -(2**63):
+            _bigint(output, value)
         else:
             _floating(output, float(value))
     else:
-        _uint(output, NUMBER, value)
+        if value < MAX_U32:
+            _uint(output, NUMBER, value)
+        elif value <= 2**64 - 1:
+            _bigint(output, value)
+        else:
+            _uint(output, NUMBER, value)
+
+
+def _array_items(output, stack, v):
+    """Same role as JS `arrayItems`: ARRAY length prefix, then each element on the stack."""
+    length = len(v)
+    _uint(output, ARRAY, length)
+    for i in range(length - 1, -1, -1):
+        stack.append(item(None, v[i]))
 
 
 def _string(output, cache, data):
@@ -128,17 +145,16 @@ def _string(output, cache, data):
     output.extend(encoded[:length])
 
 
-def _augment(output, value):
+def _augment(output, stack, value):
+    """JS `augment`: View → CUSTOM + ARRAY-sized raw bytes; else CUSTOM|I8 + inline ARRAY items."""
     if isinstance(value, View):
         raw = value.value()
         output.append(CUSTOM)
-        _uint(output, NUMBER, len(raw))
-        output.extend(raw[:len(raw)])
+        _uint(output, ARRAY, len(raw))
+        output.extend(raw)
     else:
         output.append(CUSTOM | I8)
-        nested = encode(value)
-        _uint(output, NUMBER, len(nested))
-        output.extend(nested)
+        stack.append(item(ARRAY, value))
 
 
 def _compatible(key, obj):
@@ -161,6 +177,9 @@ def encode(data, output=None, custom=_custom):
         k, v = frame["k"], frame["v"]
 
         if k is not None:
+            if k == ARRAY:
+                _array_items(output, stack, v)
+                continue
             _string(output, cache, k)
 
         if v is None:
@@ -200,7 +219,7 @@ def encode(data, output=None, custom=_custom):
 
             custom_result = custom(v)
             if custom_result is not v:
-                _augment(output, custom_result)
+                _augment(output, stack, custom_result)
                 continue
 
             if isinstance(v, (bytes, bytearray)):
@@ -228,7 +247,7 @@ def encode(data, output=None, custom=_custom):
         # Custom handler (before __dict__ so e.g. Symbol-like can return a value)
         custom_result = custom(v)
         if custom_result is not v:
-            _augment(output, custom_result)
+            _augment(output, stack, custom_result)
             continue
 
         # Class instance: encode __dict__ as object (like JS enumerable keys)

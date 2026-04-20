@@ -46,10 +46,12 @@ assert_eq(v, decoded["v"])
 
 # --- test/big.buffer: same fixture and checks as test/big.js (decode from bytes) ---
 with open(os.path.join(_REPO_ROOT, "test", "big.buffer"), "rb") as _big_f:
-    _big_buf = _big_f.read()
-_o = decode(_big_buf)
+    _o = decode(_big_f.read())
 _a = _o["a"]
 _MAX_SAFE_INTEGER = 9007199254740991
+# Same literals as test/big.js `bi` / `bui` (JS BigInt → NUMBER|BI / NUMBER|BUI on the wire).
+_BIGINT_NEG = -9007199254740992  # -2**53
+_BIGINT_POS = 9007199254740992  # 2**53
 assert_eq(True, _o["t"], "t")
 assert_eq(False, _o["f"], "f")
 assert_eq(None, _o["n"], "n")
@@ -63,13 +65,44 @@ assert_eq(-123, _o["int8"], "int8")
 assert_eq(-32767, _o["int16"], "int16")
 assert_eq(-2147483647, _o["int32"], "int32")
 assert_eq(-_MAX_SAFE_INTEGER, _o["int64"], "int64")
+assert_eq(_BIGINT_NEG, _o["bi"], "bi (JS bigint → int in Python)")
+assert_eq(_BIGINT_POS, _o["bui"], "bui (JS bigint → int in Python)")
+assert type(_o["bi"]) is int, "bi must be plain int, not float"
+assert type(_o["bui"]) is int, "bui must be plain int, not float"
 assert_eq(123.456, _o["f64"], "f64")
 assert_eq("string", _o["s"], "s")
 assert_eq(2, len(_a), "a")
 assert _a[0] is _o, "a[0]"
 assert _a[1] is _a, "a[1]"
 assert _o["o"] is _o, "o.o"
-assert_eq(_big_buf, bytes(encode(_o)), "encode(_o) matches test/big.buffer (JS encode)")
+# JS `test/big.js` encodes uint64/int64 as `number` (F64 on the wire). Python encodes the
+# same integer values as BUI/BI (8-byte), like JS `bigint` — no string translation.
+_r = decode(bytes(encode(_o)))
+for _k in (
+    "t",
+    "f",
+    "n",
+    "uint",
+    "int",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "bi",
+    "bui",
+    "f64",
+    "s",
+):
+    assert_eq(_o[_k], _r[_k], _k)
+assert_eq(2, len(_r["a"]), "a len roundtrip")
+assert _r["a"][0] is _r, "a[0] roundtrip"
+assert _r["a"][1] is _r["a"], "a[1] roundtrip"
+assert _r["o"] is _r, "o.o roundtrip"
+assert type(_r["bi"]) is int and type(_r["bui"]) is int, "BI/BUI roundtrip stay int"
 
 # --- Repeated string in array ---
 encoded = encode(["a", "b", "a"])
@@ -86,13 +119,16 @@ encoded = encode(v)
 decoded = decode(encoded)
 assert_eq(v, decoded)
 
-# --- Custom bigint as string (like JS ASCII.encode) ---
+# --- Optional custom: ASCII string (mirrors test/index.js `ASCII.encode` + custom), not core BI/BUI ---
 def encode_bigint_str(value):
     if isinstance(value, int) and (value < -2**53 or value >= 2**53):
         return str(value).encode("ascii")
     return value
 
-def decode_bigint_str(value):
+def decode_bigint_str(value, from_view=False):
+    # Implicit CUSTOM: list of int code units (like JS Uint8Array expanded to numbers).
+    if isinstance(value, list):
+        return int(bytes(value).decode("ascii"))
     if isinstance(value, bytes):
         return int(value.decode("ascii"))
     return value
@@ -100,6 +136,11 @@ def decode_bigint_str(value):
 encoded = encode(123, custom=encode_bigint_str)
 decoded = decode(encoded, custom=decode_bigint_str)
 assert_eq(123, decoded)
+
+# --- Core NUMBER | BI / BUI (8-byte), same as JS `bigint` on the wire; no custom ---
+assert_eq(2**40, decode(encode(2**40)))
+assert_eq(2**63 - 1, decode(encode(2**63 - 1)))
+assert_eq(-(2**62), decode(encode(-(2**62))))
 
 # --- Dict with int and large int (like bigint) ---
 data_bi = {"bi": 123, "i": 123}
@@ -214,9 +255,9 @@ encoded = encode(Unserializable())
 decoded = decode(encoded)
 assert_eq({}, decoded)
 
-# --- custom view([1,2,3]) ---
-encoded = encode([1, 2, 3], custom=lambda val: view(val) if isinstance(val, (list, tuple)) else val)
-decoded = decode(encoded)
+# --- custom view(encode([1,2,3])) like JS ---
+encoded = encode([1, 2, 3], custom=lambda val: view(bytes(encode(val))) if isinstance(val, (list, tuple)) else val)
+decoded = decode(encoded, custom=lambda val, from_view=False: decode(val) if from_view else val)
 assert_eq("1,2,3", ",".join(map(str, decoded)))
 
 # --- Primitives ---
@@ -250,24 +291,27 @@ encoded = encode(MethodOnly())
 decoded = decode(encoded)
 assert_eq(0, len(decoded))
 
-# --- encode({}, custom: ()=>1), decode with custom identity -> 1 ---
+# --- encode({}, custom: ()=>[1]), decode with custom identity -> 1 ---
 def custom_one(value):
-    return 1
+    return [1]
 encoded = encode({}, custom=custom_one)
-decoded = decode(encoded, custom=lambda x: x)
+decoded = decode(encoded, custom=lambda x, _fv=False: x[0])
 assert_eq(1, decoded)
 
-# --- encode({}, custom: ()=>123), decode -> 123 ---
-encoded = encode({}, custom=lambda _: 123)
-decoded = decode(encoded)
+# --- encode({}, custom: ()=>[123]), decode -> 123 ---
+encoded = encode({}, custom=lambda _: [123])
+decoded = decode(encoded, custom=lambda x, _fv=False: x[0])
 assert_eq(123, decoded)
 
 # --- Custom for "symbol" description (like JS Symbol('nope')) ---
 class Sym:
     def __init__(self, desc):
         self.description = desc
-encoded = encode(Sym("nope"), custom=lambda v: v.description if hasattr(v, "description") else v)
-decoded = decode(encoded)
+encoded = encode(
+    Sym("nope"),
+    custom=lambda v: [v.description] if hasattr(v, "description") else v,
+)
+decoded = decode(encoded, custom=lambda v, _fv=False: v[0])
 assert_eq("nope", decoded)
 
 # --- Float32Array-like custom ---
@@ -275,14 +319,18 @@ import struct
 
 def float32_custom_encode(value):
     if hasattr(value, "__class__") and value.__class__.__name__ == "Float32Array":
-        return {"typed": "Float32Array", "view": bytes(value.buffer)}
+        return ["Float32Array", bytes(value.buffer)]
     return value
 
-def float32_custom_decode(value):
-    if isinstance(value, dict) and value.get("typed") == "Float32Array":
+def float32_custom_decode(value, from_view=False):
+    if (
+        isinstance(value, list)
+        and len(value) == 2
+        and value[0] == "Float32Array"
+    ):
         import array
         arr = array.array("f")
-        arr.frombytes(value["view"])
+        arr.frombytes(value[1])
         return arr
     return value
 

@@ -27,9 +27,11 @@ from .constants import (
 )
 
 NUMBER_IGNORE = ~(RECURSION | NUMBER)
+# Same as JS `STACK_DECODED` in src/decode.js
+STACK_DECODED = CUSTOM_REVIVE
 
 
-def _default_custom(value):
+def _default_custom(value, from_view=False):
     return value
 
 
@@ -39,7 +41,6 @@ def item(k, v):
 
 def _read_number(data, type_byte, index):
     type_byte &= NUMBER_IGNORE
-    # No length bytes (e.g. OBJECT/ARRAY/STRING with length 0)
     if type_byte == 0:
         return 0
     b0 = data[index[0]]
@@ -61,7 +62,6 @@ def _read_number(data, type_byte, index):
         return struct.unpack("<I", bytes([b0, b1, b2, b3]))[0]
     if type_byte == I32:
         return struct.unpack("<i", bytes([b0, b1, b2, b3]))[0]
-    # 8 bytes for float64 (first 4 already in b0..b3, read 4 more)
     chunk = bytes([b0, b1, b2, b3]) + data[index[0] : index[0] + 4]
     index[0] += 4
     return struct.unpack("<d", chunk)[0]
@@ -106,9 +106,9 @@ def _slice(data, length, index):
 def decode(view, custom=None):
     """Decode flatted-view binary to Python values.
 
-    ``view`` may be ``bytes`` (e.g. from ``open(path, "rb").read()``), ``bytearray``,
-    ``memoryview``, or any object that implements the buffer protocol (like a JS
-    ``Uint8Array`` backed buffer).
+    ``custom`` matches JS: ``(value, from_view: bool) -> unknown``.
+    When ``from_view`` is True, ``value`` is the raw CUSTOM payload bytes from ``view(...)``.
+    When False, ``value`` is the list built by decoding the implicit CUSTOM array segment.
     """
     if custom is None:
         custom = _default_custom
@@ -116,6 +116,10 @@ def decode(view, custom=None):
     data = bytes(view)
 
     cache = {}
+    # CUSTOM placeholders: list object -> byte offset (JS Map entry-as-key)
+    rev = {}
+    as_key = set()
+
     index = [0]
     ignore = item(NULL, None)
     stack = [ignore] if len(data) > 0 else []
@@ -124,12 +128,31 @@ def decode(view, custom=None):
     entry = None
     prop = None
 
+    def finalize(k, pair, known):
+        nonlocal first, result, entry
+        value, inner = pair[0], pair[1]
+        key = inner["k"]
+        parent = inner["v"]
+        revived = custom(value, k != STACK_DECODED)
+        cache[known] = revived
+        if parent is not None:
+            parent[key] = revived
+        elif first:
+            result = revived
+        return revived
+
     while stack:
         frame = stack.pop()
         k, v = frame["k"], frame["v"]
 
         if k == OBJECT:
             prop = _read_key(data, cache, index)
+
+        elif CUSTOM <= k and isinstance(v, list):
+            custom_pair = v
+            known_ref = rev.get(id(custom_pair[0]))
+            custom_pair[0].append(finalize(k, custom_pair, known_ref))
+            continue
 
         if index[0] >= len(data):
             break
@@ -145,14 +168,23 @@ def decode(view, custom=None):
             entry = None
 
         elif CUSTOM <= type_byte:
-            length_type = data[index[0]]
-            index[0] += 1
-            length = int(_read_number(data, length_type, index))
-            payload = _slice(data, length, index)
-            if type_byte == CUSTOM_REVIVE:
-                entry = custom(decode(payload, custom))
-            else:
-                entry = custom(payload)
+            known = index[0] - 1
+            entry = []
+            cache[known] = entry
+            rev[id(entry)] = known
+            as_key.add(id(entry))
+            inner_k = None
+            if k == OBJECT:
+                inner_k = prop
+            elif k == ARRAY:
+                inner_k = len(v)
+            stack.append(
+                item(
+                    type_byte,
+                    item(inner_k, v),
+                )
+            )
+            continue
 
         elif type_byte & NUMBER:
             if type_byte & ARRAY:
@@ -177,10 +209,20 @@ def decode(view, custom=None):
             else:
                 known = index[0] - 1
                 length = int(_read_number(data, type_byte, index))
+                is_custom = CUSTOM <= k
 
                 if kind == ARRAY:
-                    entry = []
-                    cache[known] = entry
+                    if is_custom:
+                        entry = cache.get(known - 1)
+                        if k != STACK_DECODED:
+                            target = entry
+                            pair = [_slice(data, length, index), v]
+                            target.append(finalize(k, pair, known - 1))
+                            continue
+                        stack.append(item(k, [entry, v]))
+                    else:
+                        entry = []
+                        cache[known] = entry
                     for _ in range(length):
                         stack.append(item(ARRAY, entry))
 
@@ -198,4 +240,6 @@ def decode(view, custom=None):
         elif k == ARRAY:
             v.append(entry)
 
+    if isinstance(result, list) and id(result) in as_key:
+        return result.pop()
     return result

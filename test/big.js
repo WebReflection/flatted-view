@@ -18,6 +18,8 @@ let o = {
   int64: -Number.MAX_SAFE_INTEGER,
   f64: 123.456,
   s: 'string',
+  bi: -9007199254740992n,
+  bui: 9007199254740992n,
 };
 let a = [];
 o.a = a;
@@ -30,6 +32,9 @@ writeFileSync(import.meta.dirname + '/big.buffer', Buffer.from(encode(o)));
 o = decode(new Uint8Array(readFileSync(import.meta.dirname + '/big.buffer')));
 a = o.a;
 
+console.assert(o.bi === -9007199254740992n, 'bi');
+console.assert(o.bui === 9007199254740992n, 'bui');
+console.assert(o.t === true, 't');
 console.assert(o.t === true, 't');
 console.assert(o.f === false, 'f');
 console.assert(o.n === null, 'n');
