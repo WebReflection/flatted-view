@@ -52,7 +52,7 @@ const encode = (data, {
       case value instanceof ArrayBuffer:
         return direct([BUFFER, new Uint8Array(value)]);
       case value instanceof Date:
-        return direct([DATE, value.toISOString()]);
+        return [DATE, value.toISOString()];
       case value instanceof Map: {
         outcome = [MAP, value.size];
         for (const [k, v] of value) outcome.push(k, v);
@@ -61,9 +61,9 @@ const encode = (data, {
       case value instanceof Set:
         return [SET, value.size, ...value];
       case value instanceof Error:
-        return direct([ERROR, value.name, value.message, value.stack]);
+        return [ERROR, value.name, value.message, value.stack];
       case value instanceof RegExp:
-        return direct([REGEXP, value.source, value.flags]);
+        return [REGEXP, value.source, value.flags];
       case value instanceof File:
         outcome = [FILE, value.name, value.lastModified];
       case value instanceof Blob: {

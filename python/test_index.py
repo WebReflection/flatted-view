@@ -12,7 +12,7 @@ if __name__ == "__main__" and "." not in __name__:
     if parent not in sys.path:
         sys.path.insert(0, parent)
 
-from python import encode, decode, view
+from python import encode, decode, view, extras
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -109,10 +109,11 @@ encoded = encode(["a", "b", "a"])
 decoded = decode(encoded)
 assert_eq("a,b,a", ",".join(decoded))
 
-# --- Tuple encoded like list (decode returns list) ---
-encoded = encode(("x", "y", "z"))
-decoded = decode(encoded)
-assert_eq("x,y,z", ",".join(decoded))
+# --- Tuple: core → list on decode; extras → tuple ---
+assert_eq(["x", "y", "z"], decode(encode(("x", "y", "z"))))
+encoded = extras.encode(("x", "y", "z"))
+decoded = extras.decode(encoded)
+assert_eq(("x", "y", "z"), decoded)
 
 # --- Bytes roundtrip ---
 encoded = encode(v)
@@ -256,7 +257,7 @@ decoded = decode(encoded)
 assert_eq({}, decoded)
 
 # --- custom view(encode([1,2,3])) like JS ---
-encoded = encode([1, 2, 3], custom=lambda val: view(bytes(encode(val))) if isinstance(val, (list, tuple)) else val)
+encoded = encode([1, 2, 3], custom=lambda val: view(bytes(encode(val))) if isinstance(val, list) else val)
 decoded = decode(encoded, custom=lambda val, from_view=False: decode(val) if from_view else val)
 assert_eq("1,2,3", ",".join(map(str, decoded)))
 

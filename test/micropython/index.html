@@ -25,7 +25,7 @@
           Please note that to pass Python reference to <code>js.encode</code> you need to use <code>to_js(ref)</code>, which is also already available.
         </p>
         <script type="module">
-            import { encode, decode, view } from '../../src/index.js';
+            import { encode, decode, view } from '../../src/extras/index.js';
 
             globalThis.encode = encode;
             globalThis.decode = decode;
@@ -33,9 +33,12 @@
             globalThis.log = console.log;
         </script>
         <script type="mpy" config="config.toml" terminal>
-            from flatted_view import encode, decode, view
+            from flatted_view import extras, view
             from pyscript.ffi import to_js
             import js
+
+            encode = extras.encode
+            decode = extras.decode
 
             import code, js
             code.interact(local=globals())
