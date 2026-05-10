@@ -43,6 +43,7 @@
     "python/constants.py",
     "python/decode.py",
     "python/encode.py",
+    "python/extras.py",
     "types",
     "README.md",
     "LICENSE"
@@ -72,6 +73,6 @@
   "homepage": "https://github.com/WebReflection/flatted-view#readme",
   "devDependencies": {
     "c8": "^11.0.0",
-    "typescript": "!5.9.3"
+    "typescript": "5.9.3"
   }
 }

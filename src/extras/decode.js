@@ -4,6 +4,19 @@ import { BUFFER, VIEW, BLOB, FILE, ERROR, REGEXP, DATE, MAP, SET, IMAGE_DATA } f
 
 const { defineProperty } = Object;
 
+const global = name => {
+  switch (name) {
+    case 'Function':
+    case 'SharedWorker':
+    case 'Worker':
+    case 'eval':
+    case 'setInterval':
+    case 'setTimeout':
+      throw new TypeError('unable to deserialize ' + name);
+  }
+  return globalThis[name];
+};
+
 const decode = (view, options) => {
   return _decode(view, { ...options, custom(value, fromView) {
     const v = fromView ? _decode(value) : value;
@@ -14,7 +27,7 @@ const decode = (view, options) => {
         const buffer = v[2].buffer;
         const byteOffset = v[3];
         const length = v[4];
-        const Class = globalThis[v[1]];
+        const Class = global(v[1]);
         return length ? new Class(buffer, byteOffset, length) : new Class(buffer, byteOffset);
       }
       case DATE:
@@ -27,7 +40,7 @@ const decode = (view, options) => {
       case SET:
         return new Set(v.slice(2, 2 + v[1]));
       case ERROR: {
-        const Class = globalThis[v[1]];
+        const Class = global(v[1]);
         return defineProperty(new Class(v[2]), 'stack', { value: v[3] });
       }
       case REGEXP:
