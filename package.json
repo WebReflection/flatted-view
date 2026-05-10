@@ -35,7 +35,7 @@
     "./package.json": "./package.json"
   },
   "name": "flatted-view",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Flatted like approach brought to Uint8Array compatible values",
   "files": [
     "src",
